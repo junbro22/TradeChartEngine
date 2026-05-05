@@ -37,13 +37,27 @@ public enum ColorScheme: Int32, Sendable {
 }
 
 public enum IndicatorKind: Int32, Sendable {
+    // Overlay
     case sma        = 0
     case ema        = 1
     case bollinger  = 2
+    case ichimoku   = 3
+    case psar       = 4
+    case supertrend = 5
+    case vwap       = 6
+    case pivotStandard  = 7
+    case pivotFibonacci = 8
+    case pivotCamarilla = 9
+    // Subpanel
     case rsi        = 100
     case macd       = 101
     case stochastic = 102
     case atr        = 103
+    case dmiAdx     = 104
+    case cci        = 105
+    case williamsR  = 106
+    case obv        = 107
+    case mfi        = 108
 }
 
 public struct ChartColor: Sendable {
@@ -208,6 +222,46 @@ public final class Chart {
 
     public func addATR(period: Int = 14, color: ChartColor) {
         tce_add_atr(ctx, Int32(period), color.c)
+    }
+
+    public func addIchimoku(tenkan: Int = 9, kijun: Int = 26,
+                            senkouB: Int = 52, displacement: Int = 26,
+                            tenkanColor: ChartColor, kijunColor: ChartColor) {
+        tce_add_ichimoku(ctx, Int32(tenkan), Int32(kijun), Int32(senkouB), Int32(displacement),
+                         tenkanColor.c, kijunColor.c)
+    }
+
+    public func addPSAR(step: Double = 0.02, max: Double = 0.2, color: ChartColor) {
+        tce_add_psar(ctx, step, max, color.c)
+    }
+
+    public func addSuperTrend(period: Int = 10, multiplier: Double = 3.0, color: ChartColor) {
+        tce_add_supertrend(ctx, Int32(period), multiplier, color.c)
+    }
+
+    public func addVWAP(color: ChartColor) {
+        tce_add_vwap(ctx, color.c)
+    }
+
+    public func addDMI(period: Int = 14,
+                       plusDIColor: ChartColor, minusDIColor: ChartColor, adxColor: ChartColor) {
+        tce_add_dmi(ctx, Int32(period), plusDIColor.c, minusDIColor.c, adxColor.c)
+    }
+
+    public func addCCI(period: Int = 20, color: ChartColor) {
+        tce_add_cci(ctx, Int32(period), color.c)
+    }
+
+    public func addWilliamsR(period: Int = 14, color: ChartColor) {
+        tce_add_williams_r(ctx, Int32(period), color.c)
+    }
+
+    public func addOBV(color: ChartColor) {
+        tce_add_obv(ctx, color.c)
+    }
+
+    public func addMFI(period: Int = 14, color: ChartColor) {
+        tce_add_mfi(ctx, Int32(period), color.c)
     }
 
     // MARK: 뷰포트

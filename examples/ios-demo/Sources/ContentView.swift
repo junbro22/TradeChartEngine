@@ -15,12 +15,21 @@ struct ContentView: View {
         return c
     }()
 
-    @State private var showVolume   = true
-    @State private var showRSI      = false
-    @State private var showMACD     = false
-    @State private var showBB       = false
-    @State private var showStoch    = false
-    @State private var showATR      = false
+    @State private var showVolume     = true
+    @State private var showRSI        = false
+    @State private var showMACD       = false
+    @State private var showBB         = false
+    @State private var showStoch      = false
+    @State private var showATR        = false
+    @State private var showIchimoku   = false
+    @State private var showPSAR       = false
+    @State private var showSuperTrend = false
+    @State private var showVWAP       = false
+    @State private var showDMI        = false
+    @State private var showCCI        = false
+    @State private var showWilliamsR  = false
+    @State private var showOBV        = false
+    @State private var showMFI        = false
     @State private var seriesType: SeriesType = .candle
 
     var body: some View {
@@ -96,6 +105,47 @@ struct ContentView: View {
                     indicatorChip("ATR",   isOn: $showATR)   { on in
                         on ? chart.addATR(period: 14, color: ChartColor(r: 0.85, g: 0.85, b: 0.55))
                            : chart.removeIndicator(.atr, period: 14)
+                    }
+                    indicatorChip("Ichimoku", isOn: $showIchimoku) { on in
+                        on ? chart.addIchimoku(
+                                tenkanColor: ChartColor(r: 0.30, g: 0.85, b: 1.00),
+                                kijunColor:  ChartColor(r: 1.00, g: 0.55, b: 0.30))
+                           : chart.removeIndicator(.ichimoku, period: 9)
+                    }
+                    indicatorChip("PSAR",  isOn: $showPSAR) { on in
+                        on ? chart.addPSAR(color: ChartColor(r: 1.00, g: 0.95, b: 0.30))
+                           : chart.removeIndicator(.psar, period: 0)
+                    }
+                    indicatorChip("ST",    isOn: $showSuperTrend) { on in
+                        on ? chart.addSuperTrend(color: ChartColor(r: 0.50, g: 1.00, b: 0.50))
+                           : chart.removeIndicator(.supertrend, period: 10)
+                    }
+                    indicatorChip("VWAP",  isOn: $showVWAP) { on in
+                        on ? chart.addVWAP(color: ChartColor(r: 0.95, g: 0.55, b: 0.95))
+                           : chart.removeIndicator(.vwap, period: 0)
+                    }
+                    indicatorChip("DMI",   isOn: $showDMI) { on in
+                        on ? chart.addDMI(period: 14,
+                                          plusDIColor:  ChartColor(r: 0.30, g: 0.85, b: 0.45),
+                                          minusDIColor: ChartColor(r: 0.95, g: 0.30, b: 0.30),
+                                          adxColor:     ChartColor(r: 1.00, g: 0.85, b: 0.30))
+                           : chart.removeIndicator(.dmiAdx, period: 14)
+                    }
+                    indicatorChip("CCI",   isOn: $showCCI) { on in
+                        on ? chart.addCCI(period: 20, color: ChartColor(r: 0.50, g: 0.85, b: 1.00))
+                           : chart.removeIndicator(.cci, period: 20)
+                    }
+                    indicatorChip("W%R",   isOn: $showWilliamsR) { on in
+                        on ? chart.addWilliamsR(period: 14, color: ChartColor(r: 1.00, g: 0.55, b: 0.95))
+                           : chart.removeIndicator(.williamsR, period: 14)
+                    }
+                    indicatorChip("OBV",   isOn: $showOBV) { on in
+                        on ? chart.addOBV(color: ChartColor(r: 0.85, g: 0.85, b: 0.55))
+                           : chart.removeIndicator(.obv, period: 0)
+                    }
+                    indicatorChip("MFI",   isOn: $showMFI) { on in
+                        on ? chart.addMFI(period: 14, color: ChartColor(r: 0.45, g: 0.95, b: 0.85))
+                           : chart.removeIndicator(.mfi, period: 14)
                     }
                 }
             }
