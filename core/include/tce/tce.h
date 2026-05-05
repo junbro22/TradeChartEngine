@@ -89,12 +89,22 @@ void              tce_clear_crosshair(TceContext* ctx);
 TceCrosshairInfo  tce_crosshair_info(const TceContext* ctx);
 
 // =====================
+// Auto-scroll (rightOffset == 0이면 새 캔들 추가 시 자동 우측 정렬)
+// =====================
+void tce_set_auto_scroll(TceContext* ctx, int enabled);
+int  tce_auto_scroll(const TceContext* ctx);
+
+// =====================
 // 렌더링
 // =====================
 // 현재 상태로부터 1 프레임의 vertex/index 빌드.
 // 반환된 TceFrame은 tce_release_frame()으로 반환해야 함.
 TceFrame tce_build_frame(TceContext* ctx);
 void     tce_release_frame(TceFrame frame);
+
+// 같은 프레임의 텍스트 라벨 묶음 (build_frame 직후 호출).
+// 메모리는 ctx 내부 소유.
+TceLabels tce_build_labels(TceContext* ctx);
 
 #ifdef __cplusplus
 }

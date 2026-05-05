@@ -85,6 +85,41 @@ typedef struct TceCrosshairInfo {
     float  screen_y;
 } TceCrosshairInfo;
 
+// 텍스트 정렬 (anchor)
+typedef enum TceTextAnchor {
+    TCE_ANCHOR_LEFT_CENTER   = 0,
+    TCE_ANCHOR_RIGHT_CENTER  = 1,
+    TCE_ANCHOR_CENTER_TOP    = 2,
+    TCE_ANCHOR_CENTER_BOTTOM = 3,
+    TCE_ANCHOR_CENTER_CENTER = 4,
+} TceTextAnchor;
+
+// 라벨 종류
+typedef enum TceLabelKind {
+    TCE_LABEL_PRICE_AXIS  = 0,   // Y축 가격
+    TCE_LABEL_TIME_AXIS   = 1,   // X축 시간
+    TCE_LABEL_LAST_PRICE  = 2,   // 마지막 가격 우측 박스
+    TCE_LABEL_CROSSHAIR_PRICE = 3,
+    TCE_LABEL_CROSSHAIR_TIME  = 4,
+} TceLabelKind;
+
+// 텍스트 라벨 1개 (코어가 채움, wrapper가 폰트로 그림)
+typedef struct TceLabel {
+    const char*    text;        // null-terminated, 엔진이 소유
+    float          x;           // 화면 px
+    float          y;
+    TceTextAnchor  anchor;
+    TceLabelKind   kind;
+    TceColor       color;
+    TceColor       background;  // alpha 0이면 배경 없음
+} TceLabel;
+
+// 라벨 묶음 (한 프레임)
+typedef struct TceLabels {
+    const TceLabel* items;
+    size_t          count;
+} TceLabels;
+
 #ifdef __cplusplus
 }
 #endif
