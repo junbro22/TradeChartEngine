@@ -77,6 +77,34 @@ public struct Mesh {
     public let primitive: Primitive
 }
 
+// MARK: - Labels
+
+public enum LabelKind: Int32, Sendable {
+    case priceAxis        = 0
+    case timeAxis         = 1
+    case lastPrice        = 2
+    case crosshairPrice   = 3
+    case crosshairTime    = 4
+}
+
+public enum TextAnchor: Int32, Sendable {
+    case leftCenter   = 0
+    case rightCenter  = 1
+    case centerTop    = 2
+    case centerBottom = 3
+    case centerCenter = 4
+}
+
+public struct ChartLabel: Sendable {
+    public let text: String
+    public let x: CGFloat
+    public let y: CGFloat
+    public let anchor: TextAnchor
+    public let kind: LabelKind
+    public let color: ChartColor
+    public let background: ChartColor   // alpha 0이면 배경 없음
+}
+
 // MARK: - Chart
 
 public final class Chart {
@@ -234,6 +262,32 @@ public final class Chart {
     }
 
     // MARK: 렌더
+
+    public var autoScroll: Bool {
+        get { tce_auto_scroll(ctx) != 0 }
+        set { tce_set_auto_scroll(ctx, newValue ? 1 : 0) }
+    }
+
+    /// buildFrame 직후 호출 — 같은 layout으로 라벨 좌표 계산.
+    public func buildLabels() -> [ChartLabel] {
+        let raw = tce_build_labels(ctx)
+        var out: [ChartLabel] = []
+        out.reserveCapacity(raw.count)
+        for i in 0..<raw.count {
+            let l = raw.items[i]
+            let text = l.text.flatMap { String(cString: $0) } ?? ""
+            out.append(ChartLabel(
+                text: text,
+                x: CGFloat(l.x),
+                y: CGFloat(l.y),
+                anchor: TextAnchor(rawValue: Int32(l.anchor.rawValue)) ?? .leftCenter,
+                kind: LabelKind(rawValue: Int32(l.kind.rawValue)) ?? .priceAxis,
+                color: ChartColor(r: l.color.r, g: l.color.g, b: l.color.b, a: l.color.a),
+                background: ChartColor(r: l.background.r, g: l.background.g, b: l.background.b, a: l.background.a)
+            ))
+        }
+        return out
+    }
 
     /// 현재 상태로 한 프레임의 메시 묶음을 빌드.
     /// 반환된 Mesh는 Swift가 소유 (Vertex/Index는 복사됨).
