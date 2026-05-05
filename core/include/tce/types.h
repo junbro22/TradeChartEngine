@@ -87,6 +87,21 @@ typedef struct TceFrame {
     void*          internal;        // 엔진 내부 핸들 (release용)
 } TceFrame;
 
+// 매수/매도 표시 (호스트 앱이 push)
+typedef struct TceTradeMarker {
+    double timestamp;
+    double price;
+    int    is_buy;       // 1=매수, 0=매도
+    double quantity;     // 표기용 (옵션, 0이면 라벨 없음)
+} TceTradeMarker;
+
+// 가격 알림선 (사용자가 드래그 가능)
+typedef struct TceAlertLine {
+    int    id;
+    double price;
+    TceColor color;
+} TceAlertLine;
+
 // 크로스헤어 hit-test 결과
 typedef struct TceCrosshairInfo {
     int    visible;          // 0/1
