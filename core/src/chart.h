@@ -57,6 +57,11 @@ public:
     // render
     FrameOutput& buildFrame();
     LabelOutput& buildLabels();   // buildFrame 직후 호출 (같은 layout 사용)
+    const PanelLayout& layout() const;
+
+    // 인터랙션 — wrapper는 raw px만 dispatch
+    void applyPinch(float scale, float anchorPx);
+    void applyPan(float dxPx);
 
 private:
     Series                       series_;

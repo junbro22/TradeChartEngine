@@ -206,23 +206,28 @@ void FrameBuilder::build(const Series& series,
 
     const float W = vp.width();
     const float H = vp.height();
-    const float slot = vp.slotWidth();
+
+    // ===== 축 영역 예약 =====
+    constexpr float PRICE_AXIS_W = 60.0f;
+    constexpr float TIME_AXIS_H  = 20.0f;
+    const float plotW = std::max(10.0f, W - PRICE_AXIS_W);
+    const float plotH = std::max(10.0f, H - TIME_AXIS_H);
+
+    // 가시 슬롯 폭은 plot 영역 기준으로 재계산
+    const float slot = plotW / static_cast<float>(vp.visibleCount());
 
     // ===== 패널 레이아웃 =====
-    // 메인 비율: subpanel/볼륨 개수에 따라 나눔
     int subCount = static_cast<int>(subpanels.size()) + (cfg.volumeVisible ? 1 : 0);
     float mainRatio = 1.0f;
-    float subRatio  = 0.0f;
     if (subCount > 0) {
-        // subpanel 합 ~30%, 메인 70%
-        subRatio  = std::min(0.50f, 0.18f * subCount);
+        float subRatio = std::min(0.50f, 0.18f * subCount);
         mainRatio = 1.0f - subRatio;
     }
 
     const float mainTop    = 0.0f;
-    const float mainBottom = H * mainRatio;
+    const float mainBottom = plotH * mainRatio;
     const float subBlockTop = mainBottom + PANEL_GAP;
-    const float subBlockBottom = H;
+    const float subBlockBottom = plotH;
     const float subBlockH = std::max(20.0f, subBlockBottom - subBlockTop);
     const float perSubH = subBlockH / std::max(1, subCount);
 
@@ -249,11 +254,12 @@ void FrameBuilder::build(const Series& series,
     }
 
     // outparam: 라벨 빌더가 같은 매핑을 사용
-    layout.mainTop = mainTop;
-    layout.mainBottom = mainBottom;
-    layout.priceMin = priceY.minP;
-    layout.priceMax = priceY.maxP;
-    layout.subpanelCount = subCount;
+    layout.plot       = Rect{0, mainTop, plotW, mainBottom - mainTop};
+    layout.priceAxis  = Rect{plotW, 0, PRICE_AXIS_W, plotH};
+    layout.timeAxis   = Rect{0, plotH, plotW, TIME_AXIS_H};
+    layout.priceMin   = priceY.minP;
+    layout.priceMax   = priceY.maxP;
+    layout.subpanels.clear();
 
     std::vector<TceVertex> vTri, vLine;
     std::vector<uint32_t>  iTri, iLine;
@@ -317,10 +323,12 @@ void FrameBuilder::build(const Series& series,
     for (const auto& sp : subpanels) {
         std::vector<TceVertex> vT, vL;
         std::vector<uint32_t>  iT, iL;
-        buildSubpanel(vT, iT, vL, iL, series, from, to, slot,
-                      panelTopY(panelIdx), panelBotY(panelIdx), sp);
+        const float top = panelTopY(panelIdx);
+        const float bot = panelBotY(panelIdx);
+        buildSubpanel(vT, iT, vL, iL, series, from, to, slot, top, bot, sp);
         if (!vT.empty()) out.addMesh(std::move(vT), std::move(iT), PRIM_TRIANGLES);
         if (!vL.empty()) out.addMesh(std::move(vL), std::move(iL), PRIM_LINES);
+        layout.subpanels.push_back(Rect{0, top, plotW, bot - top});
         ++panelIdx;
     }
 
@@ -343,6 +351,9 @@ void FrameBuilder::build(const Series& series,
             }
         }
         if (!vV.empty()) out.addMesh(std::move(vV), std::move(iV), PRIM_TRIANGLES);
+        const float top = panelTopY(panelIdx);
+        const float bot = panelBotY(panelIdx);
+        layout.volumePanel = Rect{0, top, plotW, bot - top};
     }
 
     // ===== 크로스헤어 =====

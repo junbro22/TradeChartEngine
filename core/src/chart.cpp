@@ -83,13 +83,19 @@ FrameOutput& Chart::buildFrame() {
 }
 
 LabelOutput& Chart::buildLabels() {
-    labelBuilder_.build(series_, viewport_, config_,
-                        lastLayout_.subpanelCount,
-                        crosshair_,
-                        lastLayout_.priceMin, lastLayout_.priceMax,
-                        lastLayout_.mainTop, lastLayout_.mainBottom,
-                        output_, labelOutput_);
+    labelBuilder_.build(series_, viewport_, config_, crosshair_,
+                        lastLayout_, output_, labelOutput_);
     return labelOutput_;
+}
+
+const PanelLayout& Chart::layout() const { return lastLayout_; }
+
+void Chart::applyPinch(float scale, float anchorPx) {
+    if (scale > 0.0f) viewport_.zoom(scale, anchorPx);
+}
+
+void Chart::applyPan(float dxPx) {
+    viewport_.pan(dxPx);
 }
 
 } // namespace tce

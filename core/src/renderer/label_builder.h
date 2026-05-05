@@ -32,14 +32,9 @@ public:
     void build(const Series& series,
                const Viewport& viewport,
                const ChartConfig& config,
-               int subpanelCount,
                const CrosshairState& crosshair,
-               // 메인 패널의 가격 Y 매핑 (frame_builder가 계산한 minP/maxP)
-               double pricePanelMinP, double pricePanelMaxP,
-               float pricePanelTop, float pricePanelBottom,
-               // 메시 출력 — 그리드 가로/세로선, 마지막 가격선
+               const PanelLayout& layout,        // plot/priceAxis/timeAxis rect
                FrameOutput& meshOut,
-               // 라벨 출력
                LabelOutput& labelOut);
 };
 

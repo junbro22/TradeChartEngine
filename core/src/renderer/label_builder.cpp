@@ -36,7 +36,6 @@ void LabelOutput::add(std::string text, float x, float y,
 namespace {
 
 constexpr int  PRIM_LINES = 1;
-constexpr float GRID_LABEL_RIGHT_PAD = 6.0f;
 
 // 가격 라벨 단위 — 가격대 따라 5/10/100/1000 단위로 반올림된 grid 값 생성
 std::vector<double> niceGridValues(double minP, double maxP, int approxCount) {
@@ -108,25 +107,30 @@ std::string formatTimeFull(double ts) {
 
 void LabelBuilder::build(const Series& series,
                          const Viewport& vp,
-                         const ChartConfig& cfg,
-                         int /*subpanelCount*/,
+                         const ChartConfig& /*cfg*/,
                          const CrosshairState& cross,
-                         double minP, double maxP,
-                         float panelTop, float panelBottom,
+                         const PanelLayout& layout,
                          FrameOutput& meshOut,
                          LabelOutput& labelOut) {
     labelOut.clear();
     const auto& cs = series.candles();
+    const double minP = layout.priceMin;
+    const double maxP = layout.priceMax;
+    const float panelTop    = layout.plot.y;
+    const float panelBottom = layout.plot.y + layout.plot.h;
     if (cs.empty() || maxP <= minP) return;
 
     size_t from, to;
     vp.rangeFor(cs.size(), from, to);
     if (to <= from) return;
 
-    const float W = vp.width();
-    const float H = vp.height();
-    const float slot = vp.slotWidth();
-    const float rightAxisX = W;            // 라벨은 우측 끝에 정렬
+    const float plotW = layout.plot.w;
+    const float plotH = layout.plot.h;
+    const float totalH = layout.plot.y + plotH + layout.timeAxis.h;
+    const float slot = plotW / static_cast<float>(vp.visibleCount());
+    // 라벨은 priceAxis 영역 중앙에 정렬
+    const float rightAxisX = layout.priceAxis.x + layout.priceAxis.w * 0.5f;
+    const float W = plotW; // 그리드는 plot 영역까지만
 
     // ===== 가격 그리드 + Y축 라벨 =====
     std::vector<TceVertex> vGrid; std::vector<uint32_t> iGrid;
@@ -141,9 +145,10 @@ void LabelBuilder::build(const Series& series,
         float y = yFor(p);
         if (y < panelTop || y > panelBottom) continue;
         emitLine(vGrid, iGrid, 0, y, W, y, gridCol);
+        // 라벨: priceAxis 영역 중앙. wrapper는 그대로 .position() 으로 사용.
         labelOut.add(formatPrice(p),
-                     rightAxisX - GRID_LABEL_RIGHT_PAD, y,
-                     TCE_ANCHOR_RIGHT_CENTER,
+                     rightAxisX, y,
+                     TCE_ANCHOR_CENTER_CENTER,
                      TCE_LABEL_PRICE_AXIS,
                      textCol);
     }
@@ -152,12 +157,13 @@ void LabelBuilder::build(const Series& series,
     int targetTicks = 6;
     int count = static_cast<int>(to - from);
     int step = std::max(1, count / targetTicks);
+    const float timeAxisY = layout.timeAxis.y + layout.timeAxis.h * 0.5f;
     for (size_t i = from; i < to; i += step) {
         float x = (static_cast<float>(i - from) + 0.5f) * slot;
-        emitLine(vGrid, iGrid, x, panelTop, x, H - 16.0f, gridCol);
+        emitLine(vGrid, iGrid, x, panelTop, x, plotH, gridCol);
         labelOut.add(formatTimeShort(cs[i].timestamp),
-                     x, H - 4.0f,
-                     TCE_ANCHOR_CENTER_BOTTOM,
+                     x, timeAxisY,
+                     TCE_ANCHOR_CENTER_CENTER,
                      TCE_LABEL_TIME_AXIS,
                      textCol);
     }
@@ -177,8 +183,8 @@ void LabelBuilder::build(const Series& series,
 
             TceColor bg{0.0f, 0.0f, 0.0f, 0.0f};
             labelOut.add(formatPrice(last.close),
-                         rightAxisX - GRID_LABEL_RIGHT_PAD, y,
-                         TCE_ANCHOR_RIGHT_CENTER,
+                         rightAxisX, y,
+                         TCE_ANCHOR_CENTER_CENTER,
                          TCE_LABEL_LAST_PRICE,
                          lastCol, bg);
         }
@@ -194,8 +200,8 @@ void LabelBuilder::build(const Series& series,
             const TceColor crossLabelBg{0.13f, 0.16f, 0.20f, 0.95f};
             const TceColor crossLabelTxt{1.0f, 1.0f, 1.0f, 1.0f};
             labelOut.add(formatPrice(price),
-                         rightAxisX - GRID_LABEL_RIGHT_PAD, cross.y,
-                         TCE_ANCHOR_RIGHT_CENTER,
+                         rightAxisX, cross.y,
+                         TCE_ANCHOR_CENTER_CENTER,
                          TCE_LABEL_CROSSHAIR_PRICE,
                          crossLabelTxt, crossLabelBg);
         }
@@ -203,8 +209,8 @@ void LabelBuilder::build(const Series& series,
         // 시간 라벨: candleIndex의 timestamp
         double ts = cs[cross.candleIndex].timestamp;
         labelOut.add(formatTimeFull(ts),
-                     cross.x, H - 4.0f,
-                     TCE_ANCHOR_CENTER_BOTTOM,
+                     cross.x, timeAxisY,
+                     TCE_ANCHOR_CENTER_CENTER,
                      TCE_LABEL_CROSSHAIR_TIME,
                      {1.0f, 1.0f, 1.0f, 1.0f},
                      {0.13f, 0.16f, 0.20f, 0.95f});

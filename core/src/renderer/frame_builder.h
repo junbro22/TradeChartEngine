@@ -64,13 +64,23 @@ private:
     std::vector<TceMesh>                meshHeaders_;
 };
 
-// frame 빌드 후 레이아웃·가격 범위를 외부에 노출 (label_builder가 사용)
+// 픽셀 사각형
+struct Rect {
+    float x = 0;
+    float y = 0;
+    float w = 0;
+    float h = 0;
+};
+
+// frame 빌드 후 레이아웃·가격 범위를 외부에 노출 (label_builder/wrapper가 사용)
 struct PanelLayout {
-    float  mainTop = 0;
-    float  mainBottom = 0;
+    Rect   plot;              // 캔들이 그려지는 메인 영역 (axis 제외)
+    Rect   priceAxis;         // 우측 가격축 라벨 영역
+    Rect   timeAxis;          // 하단 시간축 라벨 영역
+    Rect   volumePanel;       // 거래량 패널 (없으면 w=0)
+    std::vector<Rect> subpanels; // 보조 패널들 (RSI/MACD/Stoch/ATR 등)
     double priceMin = 0;
     double priceMax = 0;
-    int    subpanelCount = 0;
 };
 
 class FrameBuilder {

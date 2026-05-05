@@ -1,6 +1,7 @@
 // extern "C" 어댑터 — C++ Chart 클래스를 C ABI로 노출
 #include "tce/tce.h"
 #include "chart.h"
+#include <algorithm>
 #include <new>
 
 struct TceContext {
@@ -152,6 +153,32 @@ void tce_set_auto_scroll(TceContext* ctx, int enabled) {
 
 int tce_auto_scroll(const TceContext* ctx) {
     return (ctx && ctx->chart.autoScroll()) ? 1 : 0;
+}
+
+void tce_apply_pinch(TceContext* ctx, float scale, float anchor_px) {
+    if (ctx) ctx->chart.applyPinch(scale, anchor_px);
+}
+
+void tce_apply_pan(TceContext* ctx, float dx_px) {
+    if (ctx) ctx->chart.applyPan(dx_px);
+}
+
+TceLayout tce_layout(const TceContext* ctx) {
+    TceLayout out{};
+    if (!ctx) return out;
+    const auto& l = ctx->chart.layout();
+    auto toC = [](const tce::Rect& r) {
+        return TceRect{r.x, r.y, r.w, r.h};
+    };
+    out.plot         = toC(l.plot);
+    out.priceAxis    = toC(l.priceAxis);
+    out.timeAxis     = toC(l.timeAxis);
+    out.volumePanel  = toC(l.volumePanel);
+    out.subpanelCount = static_cast<int>(std::min<size_t>(l.subpanels.size(), 8));
+    for (int i = 0; i < out.subpanelCount; ++i) {
+        out.subpanels[i] = toC(l.subpanels[i]);
+    }
+    return out;
 }
 
 TceLabels tce_build_labels(TceContext* ctx) {
