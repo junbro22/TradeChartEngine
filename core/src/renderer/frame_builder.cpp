@@ -3,7 +3,13 @@
 #include "viewport/viewport.h"
 #include "indicator/ma.h"
 #include "indicator/ema.h"
+#include "indicator/rsi.h"
+#include "indicator/macd.h"
+#include "indicator/bollinger.h"
+#include "indicator/stochastic.h"
+#include "indicator/atr.h"
 #include <algorithm>
+#include <limits>
 
 namespace tce {
 
@@ -43,25 +49,20 @@ namespace {
 constexpr int PRIM_TRIANGLES = 0;
 constexpr int PRIM_LINES     = 1;
 
-// 가격 패널이 차지하는 세로 비율 (volume panel 보일 때)
-constexpr float PRICE_PANEL_RATIO_WITH_VOL = 0.78f;
-constexpr float VOLUME_PANEL_RATIO         = 0.20f;
-constexpr float PANEL_GAP                  = 0.02f;
+constexpr float PANEL_GAP = 4.0f;
 
 struct YMap {
-    float top, bottom;     // 화면 px
+    float top, bottom;
     double minP, maxP;
-    float yFor(double price) const {
+    float yFor(double v) const {
         if (maxP == minP) return (top + bottom) * 0.5f;
-        double t = (price - minP) / (maxP - minP);
+        double t = (v - minP) / (maxP - minP);
         return static_cast<float>(bottom - t * (bottom - top));
     }
 };
 
-void emitLineSegment(std::vector<TceVertex>& v,
-                     std::vector<uint32_t>&  idx,
-                     float x1, float y1, float x2, float y2,
-                     TceColor c) {
+void emitLine(std::vector<TceVertex>& v, std::vector<uint32_t>& idx,
+              float x1, float y1, float x2, float y2, TceColor c) {
     uint32_t base = static_cast<uint32_t>(v.size());
     v.push_back({x1, y1, c.r, c.g, c.b, c.a});
     v.push_back({x2, y2, c.r, c.g, c.b, c.a});
@@ -69,10 +70,8 @@ void emitLineSegment(std::vector<TceVertex>& v,
     idx.push_back(base + 1);
 }
 
-void emitRect(std::vector<TceVertex>& v,
-              std::vector<uint32_t>&  idx,
-              float x1, float y1, float x2, float y2,
-              TceColor c) {
+void emitRect(std::vector<TceVertex>& v, std::vector<uint32_t>& idx,
+              float x1, float y1, float x2, float y2, TceColor c) {
     uint32_t base = static_cast<uint32_t>(v.size());
     v.push_back({x1, y1, c.r, c.g, c.b, c.a});
     v.push_back({x2, y1, c.r, c.g, c.b, c.a});
@@ -80,6 +79,20 @@ void emitRect(std::vector<TceVertex>& v,
     v.push_back({x1, y2, c.r, c.g, c.b, c.a});
     idx.push_back(base);     idx.push_back(base + 1); idx.push_back(base + 2);
     idx.push_back(base);     idx.push_back(base + 2); idx.push_back(base + 3);
+}
+
+void emitPolyline(std::vector<TceVertex>& v, std::vector<uint32_t>& idx,
+                  const std::vector<std::optional<double>>& values,
+                  size_t from, size_t to, float slot,
+                  const YMap& ymap, TceColor c) {
+    std::optional<float> px, py;
+    for (size_t i = from; i < to; ++i) {
+        if (!values[i]) { px.reset(); py.reset(); continue; }
+        float x = (static_cast<float>(i - from) + 0.5f) * slot;
+        float y = ymap.yFor(*values[i]);
+        if (px && py) emitLine(v, idx, *px, *py, x, y, c);
+        px = x; py = y;
+    }
 }
 
 TceColor candleColor(bool isUp, TceColorScheme scheme) {
@@ -91,12 +104,93 @@ TceColor candleColor(bool isUp, TceColorScheme scheme) {
                 : TceColor{0.93f, 0.27f, 0.27f, 1.0f};
 }
 
+// 보조 패널 한 개에 대한 스켈레톤
+void buildSubpanel(std::vector<TceVertex>& vTri, std::vector<uint32_t>& iTri,
+                   std::vector<TceVertex>& vLine, std::vector<uint32_t>& iLine,
+                   const Series& series,
+                   size_t from, size_t to,
+                   float slot, float panelTop, float panelBottom,
+                   const SubpanelSpec& spec) {
+    YMap ymap;
+    ymap.top = panelTop + 4.0f;
+    ymap.bottom = panelBottom - 4.0f;
+
+    auto rangeOf = [&](const std::vector<std::optional<double>>& a,
+                        const std::vector<std::optional<double>>& b = {},
+                        const std::vector<std::optional<double>>& c = {}) {
+        double mn =  std::numeric_limits<double>::infinity();
+        double mx = -std::numeric_limits<double>::infinity();
+        auto absorb = [&](const std::vector<std::optional<double>>& s) {
+            if (s.empty()) return;
+            for (size_t i = from; i < to && i < s.size(); ++i) {
+                if (!s[i]) continue;
+                mn = std::min(mn, *s[i]);
+                mx = std::max(mx, *s[i]);
+            }
+        };
+        absorb(a); absorb(b); absorb(c);
+        if (!std::isfinite(mn) || !std::isfinite(mx) || mn == mx) {
+            mn = 0; mx = 1;
+        }
+        return std::make_pair(mn, mx);
+    };
+
+    if (spec.kind == TCE_IND_RSI) {
+        auto v = rsi(series, spec.p1);
+        ymap.minP = 0; ymap.maxP = 100;
+        // 30/70 가이드 라인
+        TceColor guide{0.4f, 0.4f, 0.5f, 0.4f};
+        emitLine(vLine, iLine, 0, ymap.yFor(30), slot * (to - from), ymap.yFor(30), guide);
+        emitLine(vLine, iLine, 0, ymap.yFor(70), slot * (to - from), ymap.yFor(70), guide);
+        emitPolyline(vLine, iLine, v, from, to, slot, ymap, spec.color1);
+        return;
+    }
+    if (spec.kind == TCE_IND_MACD) {
+        auto m = macd(series, spec.p1, spec.p2, spec.p3);
+        auto rng = rangeOf(m.line, m.signal, m.histogram);
+        ymap.minP = rng.first;  ymap.maxP = rng.second;
+        // histogram = bar
+        const float w = std::max(1.0f, slot * 0.65f);
+        float zeroY = ymap.yFor(0.0);
+        for (size_t i = from; i < to; ++i) {
+            if (!m.histogram[i]) continue;
+            float cx = (static_cast<float>(i - from) + 0.5f) * slot;
+            float y = ymap.yFor(*m.histogram[i]);
+            float top = std::min(y, zeroY);
+            float bot = std::max(y, zeroY);
+            if (bot - top < 1.0f) bot = top + 1.0f;
+            emitRect(vTri, iTri, cx - w*0.5f, top, cx + w*0.5f, bot, spec.color3);
+        }
+        emitPolyline(vLine, iLine, m.line,   from, to, slot, ymap, spec.color1);
+        emitPolyline(vLine, iLine, m.signal, from, to, slot, ymap, spec.color2);
+        return;
+    }
+    if (spec.kind == TCE_IND_STOCHASTIC) {
+        auto s = stochastic(series, spec.p1, spec.p2, spec.p3);
+        ymap.minP = 0; ymap.maxP = 100;
+        TceColor guide{0.4f, 0.4f, 0.5f, 0.4f};
+        emitLine(vLine, iLine, 0, ymap.yFor(20), slot * (to - from), ymap.yFor(20), guide);
+        emitLine(vLine, iLine, 0, ymap.yFor(80), slot * (to - from), ymap.yFor(80), guide);
+        emitPolyline(vLine, iLine, s.k, from, to, slot, ymap, spec.color1);
+        emitPolyline(vLine, iLine, s.d, from, to, slot, ymap, spec.color2);
+        return;
+    }
+    if (spec.kind == TCE_IND_ATR) {
+        auto a = atr(series, spec.p1);
+        auto rng = rangeOf(a);
+        ymap.minP = rng.first; ymap.maxP = rng.second;
+        emitPolyline(vLine, iLine, a, from, to, slot, ymap, spec.color1);
+        return;
+    }
+}
+
 } // namespace
 
 void FrameBuilder::build(const Series& series,
                          const Viewport& vp,
                          const ChartConfig& cfg,
-                         const std::vector<IndicatorSpec>& indicators,
+                         const std::vector<OverlaySpec>& overlays,
+                         const std::vector<SubpanelSpec>& subpanels,
                          const CrosshairState& cross,
                          FrameOutput& out) {
     out.clear();
@@ -112,34 +206,50 @@ void FrameBuilder::build(const Series& series,
     const float H = vp.height();
     const float slot = vp.slotWidth();
 
-    // 패널 영역
-    const float pricePanelTop    = 0.0f;
-    const float pricePanelBottom = cfg.volumeVisible
-        ? H * PRICE_PANEL_RATIO_WITH_VOL
-        : H;
-    const float volPanelTop    = pricePanelBottom + H * PANEL_GAP;
-    const float volPanelBottom = H;
+    // ===== 패널 레이아웃 =====
+    // 메인 비율: subpanel/볼륨 개수에 따라 나눔
+    int subCount = static_cast<int>(subpanels.size()) + (cfg.volumeVisible ? 1 : 0);
+    float mainRatio = 1.0f;
+    float subRatio  = 0.0f;
+    if (subCount > 0) {
+        // subpanel 합 ~30%, 메인 70%
+        subRatio  = std::min(0.50f, 0.18f * subCount);
+        mainRatio = 1.0f - subRatio;
+    }
 
-    // 가격 Y 매핑
+    const float mainTop    = 0.0f;
+    const float mainBottom = H * mainRatio;
+    const float subBlockTop = mainBottom + PANEL_GAP;
+    const float subBlockBottom = H;
+    const float subBlockH = std::max(20.0f, subBlockBottom - subBlockTop);
+    const float perSubH = subBlockH / std::max(1, subCount);
+
+    // ===== 메인 패널 — 가격 Y 매핑 =====
     YMap priceY{
-        pricePanelTop + 8.0f,
-        pricePanelBottom - 8.0f,
+        mainTop + 8.0f,
+        mainBottom - 8.0f,
         series.minLowInRange(from, to),
         series.maxHighInRange(from, to)
     };
-    // 약간의 여유
+    // BB가 메인보다 위/아래로 나갈 수 있어 그것까지 포함
+    for (const auto& ov : overlays) {
+        if (ov.kind == TCE_IND_BOLLINGER) {
+            auto bb = bollinger(series, ov.period, ov.param);
+            for (size_t i = from; i < to; ++i) {
+                if (bb.upper[i]) priceY.maxP = std::max(priceY.maxP, *bb.upper[i]);
+                if (bb.lower[i]) priceY.minP = std::min(priceY.minP, *bb.lower[i]);
+            }
+        }
+    }
     {
         double pad = (priceY.maxP - priceY.minP) * 0.05;
-        priceY.minP -= pad;
-        priceY.maxP += pad;
+        priceY.minP -= pad; priceY.maxP += pad;
     }
 
-    // ===== 캔들 또는 라인 =====
-    std::vector<TceVertex> v_main;
-    std::vector<uint32_t>  i_main;
-    std::vector<TceVertex> v_main_lines;
-    std::vector<uint32_t>  i_main_lines;
+    std::vector<TceVertex> vTri, vLine;
+    std::vector<uint32_t>  iTri, iLine;
 
+    // 캔들 / 라인
     if (cfg.seriesType == TCE_SERIES_CANDLE) {
         const float candleW = std::max(1.0f, slot * 0.65f);
         for (size_t i = from; i < to; ++i) {
@@ -148,63 +258,71 @@ void FrameBuilder::build(const Series& series,
             const TceColor col = candleColor(up, cfg.scheme);
             const float cx = (static_cast<float>(i - from) + 0.5f) * slot;
 
-            // 심지 (line)
-            emitLineSegment(v_main_lines, i_main_lines,
-                            cx, priceY.yFor(c.high),
-                            cx, priceY.yFor(c.low), col);
+            emitLine(vLine, iLine, cx, priceY.yFor(c.high), cx, priceY.yFor(c.low), col);
 
-            // 몸통 (rect)
             float yOpen  = priceY.yFor(c.open);
             float yClose = priceY.yFor(c.close);
             float yTop    = std::min(yOpen, yClose);
             float yBottom = std::max(yOpen, yClose);
             if (yBottom - yTop < 1.0f) yBottom = yTop + 1.0f;
-            emitRect(v_main, i_main,
-                     cx - candleW * 0.5f, yTop,
-                     cx + candleW * 0.5f, yBottom, col);
+            emitRect(vTri, iTri, cx - candleW * 0.5f, yTop, cx + candleW * 0.5f, yBottom, col);
         }
     } else {
-        // 라인 차트 — 종가 연결
         const TceColor col{0.30f, 0.65f, 1.0f, 1.0f};
         for (size_t i = from + 1; i < to; ++i) {
             float x1 = (static_cast<float>(i - 1 - from) + 0.5f) * slot;
             float x2 = (static_cast<float>(i - from) + 0.5f) * slot;
             float y1 = priceY.yFor(cs[i - 1].close);
             float y2 = priceY.yFor(cs[i].close);
-            emitLineSegment(v_main_lines, i_main_lines, x1, y1, x2, y2, col);
+            emitLine(vLine, iLine, x1, y1, x2, y2, col);
         }
     }
 
-    // ===== 지표 =====
-    for (const auto& spec : indicators) {
-        std::vector<std::optional<double>> values;
-        if (spec.kind == TCE_IND_SMA)      values = sma(series, spec.period);
-        else if (spec.kind == TCE_IND_EMA) values = ema(series, spec.period);
-        else continue;
-
-        std::optional<float> prevX;
-        std::optional<float> prevY;
-        for (size_t i = from; i < to; ++i) {
-            if (!values[i]) { prevX.reset(); prevY.reset(); continue; }
-            float x = (static_cast<float>(i - from) + 0.5f) * slot;
-            float y = priceY.yFor(*values[i]);
-            if (prevX && prevY) {
-                emitLineSegment(v_main_lines, i_main_lines,
-                                *prevX, *prevY, x, y, spec.color);
-            }
-            prevX = x;
-            prevY = y;
+    // Overlay 지표
+    for (const auto& ov : overlays) {
+        if (ov.kind == TCE_IND_SMA) {
+            emitPolyline(vLine, iLine, sma(series, ov.period), from, to, slot, priceY, ov.color);
+        } else if (ov.kind == TCE_IND_EMA) {
+            emitPolyline(vLine, iLine, ema(series, ov.period), from, to, slot, priceY, ov.color);
+        } else if (ov.kind == TCE_IND_BOLLINGER) {
+            auto bb = bollinger(series, ov.period, ov.param);
+            emitPolyline(vLine, iLine, bb.middle, from, to, slot, priceY, ov.color);
+            emitPolyline(vLine, iLine, bb.upper,  from, to, slot, priceY, ov.color2);
+            emitPolyline(vLine, iLine, bb.lower,  from, to, slot, priceY, ov.color2);
         }
     }
 
-    // ===== 거래량 패널 =====
-    std::vector<TceVertex> v_vol;
-    std::vector<uint32_t>  i_vol;
+    // 메인 패널 메시 추가
+    if (!vTri.empty())  out.addMesh(std::move(vTri),  std::move(iTri),  PRIM_TRIANGLES);
+    if (!vLine.empty()) out.addMesh(std::move(vLine), std::move(iLine), PRIM_LINES);
+
+    // ===== Subpanel + Volume =====
+    int panelIdx = 0;
+    auto panelTopY = [&](int idx) -> float {
+        return subBlockTop + idx * perSubH;
+    };
+    auto panelBotY = [&](int idx) -> float {
+        return subBlockTop + (idx + 1) * perSubH - PANEL_GAP * 0.5f;
+    };
+
+    for (const auto& sp : subpanels) {
+        std::vector<TceVertex> vT, vL;
+        std::vector<uint32_t>  iT, iL;
+        buildSubpanel(vT, iT, vL, iL, series, from, to, slot,
+                      panelTopY(panelIdx), panelBotY(panelIdx), sp);
+        if (!vT.empty()) out.addMesh(std::move(vT), std::move(iT), PRIM_TRIANGLES);
+        if (!vL.empty()) out.addMesh(std::move(vL), std::move(iL), PRIM_LINES);
+        ++panelIdx;
+    }
+
+    // Volume
     if (cfg.volumeVisible) {
         double maxVol = series.maxVolumeInRange(from, to);
+        std::vector<TceVertex> vV;
+        std::vector<uint32_t>  iV;
         if (maxVol > 0.0) {
-            const float bottomY = volPanelBottom - 4.0f;
-            const float topY    = volPanelTop + 4.0f;
+            const float bottomY = panelBotY(panelIdx);
+            const float topY    = panelTopY(panelIdx);
             const float volW    = std::max(1.0f, slot * 0.65f);
             for (size_t i = from; i < to; ++i) {
                 const auto& c = cs[i];
@@ -212,26 +330,21 @@ void FrameBuilder::build(const Series& series,
                 const TceColor col = candleColor(up, cfg.scheme);
                 float cx = (static_cast<float>(i - from) + 0.5f) * slot;
                 float h = static_cast<float>((c.volume / maxVol) * (bottomY - topY));
-                emitRect(v_vol, i_vol,
-                         cx - volW * 0.5f, bottomY - h,
-                         cx + volW * 0.5f, bottomY, col);
+                emitRect(vV, iV, cx - volW*0.5f, bottomY - h, cx + volW*0.5f, bottomY, col);
             }
         }
+        if (!vV.empty()) out.addMesh(std::move(vV), std::move(iV), PRIM_TRIANGLES);
     }
 
     // ===== 크로스헤어 =====
-    std::vector<TceVertex> v_cross;
-    std::vector<uint32_t>  i_cross;
     if (cross.visible) {
+        std::vector<TceVertex> v;
+        std::vector<uint32_t>  i;
         const TceColor c{0.55f, 0.60f, 0.70f, 0.65f};
-        emitLineSegment(v_cross, i_cross, cross.x, 0.0f, cross.x, H, c);
-        emitLineSegment(v_cross, i_cross, 0.0f, cross.y, W, cross.y, c);
+        emitLine(v, i, cross.x, 0, cross.x, H, c);
+        emitLine(v, i, 0, cross.y, W, cross.y, c);
+        out.addMesh(std::move(v), std::move(i), PRIM_LINES);
     }
-
-    if (!v_main.empty())       out.addMesh(std::move(v_main),       std::move(i_main),       PRIM_TRIANGLES);
-    if (!v_main_lines.empty()) out.addMesh(std::move(v_main_lines), std::move(i_main_lines), PRIM_LINES);
-    if (!v_vol.empty())        out.addMesh(std::move(v_vol),        std::move(i_vol),        PRIM_TRIANGLES);
-    if (!v_cross.empty())      out.addMesh(std::move(v_cross),      std::move(i_cross),      PRIM_LINES);
 }
 
 } // namespace tce

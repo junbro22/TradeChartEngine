@@ -8,10 +8,24 @@ namespace tce {
 class Series;
 class Viewport;
 
-struct IndicatorSpec {
-    TceIndicatorKind kind;
-    int              period;
-    TceColor         color;
+// Overlay (메인 패널 위) 지표
+struct OverlaySpec {
+    TceIndicatorKind kind;       // SMA / EMA / BOLLINGER
+    int              period = 0;
+    double           param  = 2.0; // BB stddev (기본 2.0)
+    TceColor         color  = {1, 1, 1, 1};
+    TceColor         color2 = {1, 1, 1, 0.5}; // BB lower
+};
+
+// Subpanel (하단 별도 패널) 지표
+struct SubpanelSpec {
+    TceIndicatorKind kind;       // RSI / MACD / STOCHASTIC / ATR
+    int              p1 = 14;    // primary period (RSI/ATR period, MACD fast, Stoch kPeriod)
+    int              p2 = 0;     // MACD slow, Stoch dPeriod
+    int              p3 = 0;     // MACD signal, Stoch smooth
+    TceColor         color1 = {1, 1, 1, 1};
+    TceColor         color2 = {1, 1, 1, 0.6};   // MACD signal, Stoch %D
+    TceColor         color3 = {0.5, 0.5, 0.5, 0.4}; // MACD histogram
 };
 
 struct CrosshairState {
@@ -29,8 +43,6 @@ struct ChartConfig {
     bool           volumeVisible = true;
 };
 
-// 1프레임 빌드 결과 — vertex/index 전용 메모리 보관.
-// 호스트로 반환되는 TceFrame은 이 객체를 가리킨다.
 class FrameOutput {
 public:
     FrameOutput() = default;
@@ -42,7 +54,6 @@ public:
                  std::vector<uint32_t>&&  idx,
                  int primitive);
 
-    // C ABI 노출용 — 메시별 헤더 배열을 만들어 둠
     const std::vector<TceMesh>& meshHeaders() const { return meshHeaders_; }
 
 private:
@@ -58,7 +69,8 @@ public:
     void build(const Series& series,
                const Viewport& viewport,
                const ChartConfig& config,
-               const std::vector<IndicatorSpec>& indicators,
+               const std::vector<OverlaySpec>& overlays,
+               const std::vector<SubpanelSpec>& subpanels,
                const CrosshairState& crosshair,
                FrameOutput& out);
 };
