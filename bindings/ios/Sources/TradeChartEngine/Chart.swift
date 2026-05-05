@@ -264,6 +264,16 @@ public final class Chart {
         tce_add_mfi(ctx, Int32(period), color.c)
     }
 
+    public func addPivotStandard(pColor: ChartColor, rsColor: ChartColor) {
+        tce_add_pivot_standard(ctx, pColor.c, rsColor.c)
+    }
+    public func addPivotFibonacci(pColor: ChartColor, rsColor: ChartColor) {
+        tce_add_pivot_fibonacci(ctx, pColor.c, rsColor.c)
+    }
+    public func addPivotCamarilla(pColor: ChartColor, rsColor: ChartColor) {
+        tce_add_pivot_camarilla(ctx, pColor.c, rsColor.c)
+    }
+
     // MARK: 뷰포트
 
     public var visibleCount: Int {

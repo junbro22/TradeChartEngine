@@ -30,6 +30,7 @@ struct ContentView: View {
     @State private var showWilliamsR  = false
     @State private var showOBV        = false
     @State private var showMFI        = false
+    @State private var showPivot      = false
     @State private var seriesType: SeriesType = .candle
 
     var body: some View {
@@ -146,6 +147,12 @@ struct ContentView: View {
                     indicatorChip("MFI",   isOn: $showMFI) { on in
                         on ? chart.addMFI(period: 14, color: ChartColor(r: 0.45, g: 0.95, b: 0.85))
                            : chart.removeIndicator(.mfi, period: 14)
+                    }
+                    indicatorChip("Pivot", isOn: $showPivot) { on in
+                        on ? chart.addPivotStandard(
+                                pColor:  ChartColor(r: 1.00, g: 0.85, b: 0.30),
+                                rsColor: ChartColor(r: 0.85, g: 0.85, b: 0.85, a: 0.6))
+                           : chart.removeIndicator(.pivotStandard, period: 0)
                     }
                 }
             }
