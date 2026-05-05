@@ -6,13 +6,19 @@ import MetalKit
 public struct TradeChartView: View {
     public let chart: Chart
     public var onCrosshairChange: ((Chart.CrosshairInfo) -> Void)?
+    @Binding public var drawingMode: DrawingKind?
+    public var drawingColor: ChartColor
 
     @State private var labels: [ChartLabel] = []
     @State private var pixelSize: CGSize = .zero
 
     public init(chart: Chart,
+                drawingMode: Binding<DrawingKind?> = .constant(nil),
+                drawingColor: ChartColor = ChartColor(r: 1.0, g: 0.85, b: 0.20),
                 onCrosshairChange: ((Chart.CrosshairInfo) -> Void)? = nil) {
         self.chart = chart
+        self._drawingMode = drawingMode
+        self.drawingColor = drawingColor
         self.onCrosshairChange = onCrosshairChange
     }
 
@@ -21,6 +27,8 @@ public struct TradeChartView: View {
             ChartMetalLayer(
                 chart: chart,
                 onCrosshairChange: onCrosshairChange,
+                drawingMode: $drawingMode,
+                drawingColor: drawingColor,
                 labels: $labels,
                 pixelSize: $pixelSize
             )
@@ -72,14 +80,19 @@ public struct TradeChartView: View {
 private struct ChartMetalLayer: UIViewRepresentable {
     let chart: Chart
     var onCrosshairChange: ((Chart.CrosshairInfo) -> Void)?
+    @Binding var drawingMode: DrawingKind?
+    let drawingColor: ChartColor
     @Binding var labels: [ChartLabel]
     @Binding var pixelSize: CGSize
 
     func makeCoordinator() -> Coordinator {
         Coordinator(chart: chart,
                     onCrosshairChange: onCrosshairChange,
+                    drawingColor: drawingColor,
                     setLabels: { labels = $0 },
-                    setPixelSize: { pixelSize = $0 })
+                    setPixelSize: { pixelSize = $0 },
+                    clearDrawingMode: { drawingMode = nil },
+                    currentDrawingMode: { drawingMode })
     }
 
     func makeUIView(context: Context) -> MTKView {
@@ -111,18 +124,28 @@ private struct ChartMetalLayer: UIViewRepresentable {
     final class Coordinator: NSObject, MTKViewDelegate {
         let chart: Chart
         var onCrosshairChange: ((Chart.CrosshairInfo) -> Void)?
+        let drawingColor: ChartColor
         let setLabels: ([ChartLabel]) -> Void
         let setPixelSize: (CGSize) -> Void
+        let clearDrawingMode: () -> Void
+        let currentDrawingMode: () -> DrawingKind?
         private var renderer: MetalRenderer?
+        private var currentDrawingId: Int? = nil
 
         init(chart: Chart,
              onCrosshairChange: ((Chart.CrosshairInfo) -> Void)?,
+             drawingColor: ChartColor,
              setLabels: @escaping ([ChartLabel]) -> Void,
-             setPixelSize: @escaping (CGSize) -> Void) {
+             setPixelSize: @escaping (CGSize) -> Void,
+             clearDrawingMode: @escaping () -> Void,
+             currentDrawingMode: @escaping () -> DrawingKind?) {
             self.chart = chart
             self.onCrosshairChange = onCrosshairChange
+            self.drawingColor = drawingColor
             self.setLabels = setLabels
             self.setPixelSize = setPixelSize
+            self.clearDrawingMode = clearDrawingMode
+            self.currentDrawingMode = currentDrawingMode
         }
 
         func attach(view: MTKView) {
@@ -161,9 +184,37 @@ private struct ChartMetalLayer: UIViewRepresentable {
         }
 
         @objc func onPan(_ g: UIPanGestureRecognizer) {
-            guard let view = g.view, g.state == .changed else { return }
+            guard let view = g.view else { return }
+            let scale = view.contentScaleFactor
+
+            // 드로잉 모드면 pan 대신 drawing
+            if let mode = currentDrawingMode() {
+                let p = g.location(in: view)
+                let px = p.x * scale, py = p.y * scale
+                switch g.state {
+                case .began:
+                    currentDrawingId = chart.beginDrawing(
+                        mode, atScreenX: px, atScreenY: py, color: drawingColor)
+                case .changed:
+                    if let id = currentDrawingId {
+                        // 1점 도구는 점 0 갱신, 2점 도구는 점 1 갱신
+                        let pointIdx = (mode == .horizontal || mode == .vertical) ? 0 : 1
+                        chart.updateDrawing(id: id, pointIndex: pointIdx,
+                                            screenX: px, screenY: py)
+                    }
+                case .ended, .cancelled, .failed:
+                    currentDrawingId = nil
+                    clearDrawingMode()
+                default: break
+                }
+                view.setNeedsDisplay()
+                return
+            }
+
+            // 기본 pan
+            guard g.state == .changed else { return }
             let translation = g.translation(in: view)
-            chart.applyPan(dxPx: -translation.x * view.contentScaleFactor)
+            chart.applyPan(dxPx: -translation.x * scale)
             g.setTranslation(.zero, in: view)
             view.setNeedsDisplay()
         }
