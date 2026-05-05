@@ -19,6 +19,8 @@ set(TCE_SOURCES
     src/indicator/obv.cpp
     src/indicator/mfi.cpp
     src/indicator/pivot.cpp
+    src/drawing/drawing.cpp
+    src/drawing/drawing_renderer.cpp
     src/viewport/viewport.cpp
     src/renderer/frame_builder.cpp
     src/renderer/label_builder.cpp
