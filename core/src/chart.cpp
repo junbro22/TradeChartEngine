@@ -88,6 +88,11 @@ LabelOutput& Chart::buildLabels() {
     // 드로잉도 현재 layout 기준으로 메시 + 라벨 추가
     drawingRenderer_.build(series_, viewport_, lastLayout_,
                             drawings_.all(), output_, labelOutput_);
+    // 매수/매도 마커 + 알림선
+    markerRenderer_.buildMarkers(series_, viewport_, lastLayout_,
+                                  markers_.all(), config_.scheme,
+                                  output_, labelOutput_);
+    markerRenderer_.buildAlerts(lastLayout_, alerts_.all(), output_, labelOutput_);
     return labelOutput_;
 }
 
@@ -149,5 +154,153 @@ void Chart::updateDrawing(int id, size_t pointIdx, float screenX, float screenY)
 
 void Chart::removeDrawing(int id)     { drawings_.remove(id); }
 void Chart::clearDrawings()           { drawings_.clear(); }
+
+namespace {
+
+// 점-선분 거리 (제곱)
+float distSqPointToSegment(float px, float py, float x1, float y1, float x2, float y2) {
+    float dx = x2 - x1, dy = y2 - y1;
+    float len2 = dx * dx + dy * dy;
+    if (len2 < 1e-6f) {
+        float ex = px - x1, ey = py - y1;
+        return ex * ex + ey * ey;
+    }
+    float t = ((px - x1) * dx + (py - y1) * dy) / len2;
+    t = std::max(0.0f, std::min(1.0f, t));
+    float qx = x1 + t * dx, qy = y1 + t * dy;
+    float ex = px - qx, ey = py - qy;
+    return ex * ex + ey * ey;
+}
+
+} // namespace
+
+int Chart::hitTestDrawing(float screenX, float screenY, float tolPx) const {
+    const auto& items = drawings_.all();
+    if (items.empty()) return 0;
+    const float tol2 = tolPx * tolPx;
+    int best = 0;
+    float bestDist = tol2;
+
+    for (const auto& d : items) {
+        if (d.points.empty()) continue;
+        // 도메인 → 화면 변환은 chart.cpp 안에서 — 헬퍼 람다 (drawing_renderer와 중복이지만 단순화)
+        auto toScreen = [&](const DrawingPoint& p) -> std::pair<float, float> {
+            float x = 0, y = 0;
+            const auto& cs = series_.candles();
+            if (!cs.empty()) {
+                size_t from, to; viewport_.rangeFor(cs.size(), from, to);
+                const float plotW = lastLayout_.plot.w;
+                const float slot = plotW / static_cast<float>(viewport_.visibleCount());
+                if (p.timestamp <= cs.front().timestamp)
+                    x = (-(double)from + 0.5) * slot;
+                else if (p.timestamp >= cs.back().timestamp)
+                    x = ((double)cs.size() - 1 - from + 0.5) * slot;
+                else {
+                    auto it = std::lower_bound(cs.begin(), cs.end(), p.timestamp,
+                        [](const TceCandle& c, double v) { return c.timestamp < v; });
+                    size_t hi = it - cs.begin();
+                    size_t lo = hi - 1;
+                    double frac = (cs[hi].timestamp != cs[lo].timestamp)
+                        ? (p.timestamp - cs[lo].timestamp) / (cs[hi].timestamp - cs[lo].timestamp)
+                        : 0;
+                    double idx = (double)lo + frac;
+                    x = (idx - (double)from + 0.5) * slot;
+                }
+            }
+            const float top = lastLayout_.plot.y;
+            const float bot = lastLayout_.plot.y + lastLayout_.plot.h;
+            if (lastLayout_.priceMax != lastLayout_.priceMin) {
+                double t = (p.price - lastLayout_.priceMin) /
+                           (lastLayout_.priceMax - lastLayout_.priceMin);
+                y = bot - t * (bot - top);
+            }
+            return {x, y};
+        };
+
+        // 도구별 hit-test
+        if (d.kind == TCE_DRAW_HORIZONTAL) {
+            auto [_, y] = toScreen(d.points[0]);
+            (void)_;
+            float dy = screenY - y;
+            float dist = dy * dy;
+            if (dist < bestDist) { bestDist = dist; best = d.id; }
+        } else if (d.kind == TCE_DRAW_VERTICAL) {
+            auto [x, _] = toScreen(d.points[0]);
+            (void)_;
+            float dx = screenX - x;
+            float dist = dx * dx;
+            if (dist < bestDist) { bestDist = dist; best = d.id; }
+        } else if (d.points.size() >= 2) {
+            auto [x1, y1] = toScreen(d.points[0]);
+            auto [x2, y2] = toScreen(d.points[1]);
+            float dist = distSqPointToSegment(screenX, screenY, x1, y1, x2, y2);
+            if (dist < bestDist) { bestDist = dist; best = d.id; }
+        }
+    }
+    return best;
+}
+
+void Chart::translateDrawing(int id, float dxPx, float dyPx) {
+    auto& items_ref = const_cast<std::vector<Drawing>&>(drawings_.all());
+    auto it = std::find_if(items_ref.begin(), items_ref.end(),
+        [&](const Drawing& d) { return d.id == id; });
+    if (it == items_ref.end()) return;
+
+    // dxPx, dyPx → 도메인 변화량으로 변환
+    const auto& cs = series_.candles();
+    if (cs.empty()) return;
+    const float plotW = lastLayout_.plot.w;
+    const float slot = plotW / static_cast<float>(viewport_.visibleCount());
+    if (slot <= 0) return;
+    double slotsMoved = (double)dxPx / slot;
+    // 평균 캔들 간 timestamp 간격
+    double avgDeltaTs = (cs.size() > 1)
+        ? (cs.back().timestamp - cs.front().timestamp) / static_cast<double>(cs.size() - 1)
+        : 0.0;
+    double dts = slotsMoved * avgDeltaTs;
+
+    const float top = lastLayout_.plot.y;
+    const float bot = lastLayout_.plot.y + lastLayout_.plot.h;
+    double dprice = 0.0;
+    if (bot > top && lastLayout_.priceMax > lastLayout_.priceMin) {
+        dprice = -(double)dyPx / (bot - top) * (lastLayout_.priceMax - lastLayout_.priceMin);
+    }
+    for (auto& p : it->points) {
+        p.timestamp += dts;
+        p.price     += dprice;
+    }
+}
+
+int  Chart::addTradeMarker(double ts, double price, bool isBuy, double qty) {
+    return markers_.add(ts, price, isBuy, qty);
+}
+void Chart::removeTradeMarker(int id) { markers_.remove(id); }
+void Chart::clearTradeMarkers()        { markers_.clear(); }
+
+int  Chart::addAlertLine(double price, TceColor color) {
+    return alerts_.add(price, color);
+}
+void Chart::updateAlertLineByScreen(int id, float screenY) {
+    alerts_.updatePrice(id, screenToPrice(screenY));
+}
+void Chart::removeAlertLine(int id) { alerts_.remove(id); }
+void Chart::clearAlertLines()        { alerts_.clear(); }
+
+int  Chart::hitTestAlertLine(float screenY, float tolPx) const {
+    int best = 0;
+    float bestDist = tolPx * tolPx;
+    const float top = lastLayout_.plot.y;
+    const float bot = lastLayout_.plot.y + lastLayout_.plot.h;
+    if (bot <= top || lastLayout_.priceMax == lastLayout_.priceMin) return 0;
+    for (const auto& a : alerts_.all()) {
+        double t = (a.price - lastLayout_.priceMin) /
+                   (lastLayout_.priceMax - lastLayout_.priceMin);
+        float y = static_cast<float>(bot - t * (bot - top));
+        float dy = screenY - y;
+        float dist = dy * dy;
+        if (dist < bestDist) { bestDist = dist; best = a.id; }
+    }
+    return best;
+}
 
 } // namespace tce

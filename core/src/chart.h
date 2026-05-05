@@ -7,6 +7,7 @@
 #include "renderer/label_builder.h"
 #include "drawing/drawing.h"
 #include "drawing/drawing_renderer.h"
+#include "overlay/trade_markers.h"
 #include <vector>
 
 namespace tce {
@@ -75,6 +76,22 @@ public:
     void removeDrawing(int id);
     void clearDrawings();
     const std::vector<Drawing>& drawings() const { return drawings_.all(); }
+    // 화면 px 위치에서 가장 가까운 드로잉 id (없으면 0)
+    int  hitTestDrawing(float screenX, float screenY, float toleranceePx = 12.0f) const;
+    // 드로잉 통째 이동 (모든 점이 동일 dx/dy만큼)
+    void translateDrawing(int id, float dxPx, float dyPx);
+
+    // 매수/매도 마커
+    int  addTradeMarker(double timestamp, double price, bool isBuy, double quantity);
+    void removeTradeMarker(int id);
+    void clearTradeMarkers();
+
+    // 가격 알림선
+    int  addAlertLine(double price, TceColor color);
+    void updateAlertLineByScreen(int id, float screenY);
+    void removeAlertLine(int id);
+    void clearAlertLines();
+    int  hitTestAlertLine(float screenY, float toleranceePx = 14.0f) const;
 
 private:
     Series                       series_;
@@ -90,6 +107,9 @@ private:
     PanelLayout                  lastLayout_;
     DrawingStore                 drawings_;
     DrawingRenderer              drawingRenderer_;
+    TradeMarkerStore             markers_;
+    AlertLineStore               alerts_;
+    MarkerRenderer               markerRenderer_;
     bool                         autoScroll_ = true;
 };
 
