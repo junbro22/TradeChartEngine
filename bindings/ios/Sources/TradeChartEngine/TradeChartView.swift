@@ -62,18 +62,8 @@ public struct TradeChartView: View {
     }
 
     private func anchorPosition(label: ChartLabel, scale: CGFloat) -> CGPoint {
-        // label.x/y는 pixel 좌표. SwiftUI는 point.
-        let px = label.x * scale
-        let py = label.y * scale
-        // SwiftUI .position은 view의 center 기준. anchor 따라 보정.
-        // 텍스트 폭/높이 정확히 모르므로 anchor에 따라 적당한 offset 적용.
-        switch label.anchor {
-        case .leftCenter:   return CGPoint(x: px + 20, y: py)
-        case .rightCenter:  return CGPoint(x: px - 20, y: py)
-        case .centerTop:    return CGPoint(x: px,      y: py + 8)
-        case .centerBottom: return CGPoint(x: px,      y: py - 8)
-        case .centerCenter: return CGPoint(x: px,      y: py)
-        }
+        // label.x/y는 엔진이 결정한 픽셀 좌표 (이미 padding 반영). wrapper는 그대로 사용.
+        CGPoint(x: label.x * scale, y: label.y * scale)
     }
 }
 
@@ -164,11 +154,8 @@ private struct ChartMetalLayer: UIViewRepresentable {
 
         @objc func onPinch(_ g: UIPinchGestureRecognizer) {
             guard let view = g.view, g.state == .changed else { return }
-            let factor = Float(g.scale)
-            if factor > 0 {
-                let anchor = g.location(in: view).x * view.contentScaleFactor
-                chart.zoom(factor: CGFloat(factor), anchorX: anchor)
-            }
+            let anchor = g.location(in: view).x * view.contentScaleFactor
+            chart.applyPinch(scale: g.scale, anchorPx: anchor)
             g.scale = 1
             view.setNeedsDisplay()
         }
@@ -176,7 +163,7 @@ private struct ChartMetalLayer: UIViewRepresentable {
         @objc func onPan(_ g: UIPanGestureRecognizer) {
             guard let view = g.view, g.state == .changed else { return }
             let translation = g.translation(in: view)
-            chart.pan(deltaPixels: -translation.x * view.contentScaleFactor)
+            chart.applyPan(dxPx: -translation.x * view.contentScaleFactor)
             g.setTranslation(.zero, in: view)
             view.setNeedsDisplay()
         }

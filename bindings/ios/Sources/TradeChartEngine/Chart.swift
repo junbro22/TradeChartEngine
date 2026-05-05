@@ -230,6 +230,15 @@ public final class Chart {
         tce_zoom(ctx, Float(factor), Float(anchorX))
     }
 
+    /// Wrapper는 raw 픽셀만 dispatch — 의미 해석은 엔진이.
+    public func applyPinch(scale: CGFloat, anchorPx: CGFloat) {
+        tce_apply_pinch(ctx, Float(scale), Float(anchorPx))
+    }
+
+    public func applyPan(dxPx: CGFloat) {
+        tce_apply_pan(ctx, Float(dxPx))
+    }
+
     // MARK: 크로스헤어
 
     public func setCrosshair(x: CGFloat, y: CGFloat) {
