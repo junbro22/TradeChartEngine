@@ -154,6 +154,21 @@ void tce_add_mfi(TceContext* ctx, int period, TceColor color) {
     ctx->chart.addSubpanel(TCE_IND_MFI, period, 0, 0, color);
 }
 
+void tce_add_pivot_standard(TceContext* ctx, TceColor pColor, TceColor rsColor) {
+    if (!ctx) return;
+    ctx->chart.addOverlay(TCE_IND_PIVOT_STANDARD, 0, 0.0, pColor, rsColor);
+}
+
+void tce_add_pivot_fibonacci(TceContext* ctx, TceColor pColor, TceColor rsColor) {
+    if (!ctx) return;
+    ctx->chart.addOverlay(TCE_IND_PIVOT_FIBONACCI, 0, 0.0, pColor, rsColor);
+}
+
+void tce_add_pivot_camarilla(TceContext* ctx, TceColor pColor, TceColor rsColor) {
+    if (!ctx) return;
+    ctx->chart.addOverlay(TCE_IND_PIVOT_CAMARILLA, 0, 0.0, pColor, rsColor);
+}
+
 void tce_set_visible_count(TceContext* ctx, int count) {
     if (ctx) ctx->chart.viewport().setVisibleCount(count);
 }

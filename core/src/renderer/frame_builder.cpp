@@ -17,6 +17,7 @@
 #include "indicator/williams_r.h"
 #include "indicator/obv.h"
 #include "indicator/mfi.h"
+#include "indicator/pivot.h"
 #include <algorithm>
 #include <limits>
 
@@ -417,6 +418,26 @@ void FrameBuilder::build(const Series& series,
         }
         case TCE_IND_VWAP: {
             emitPolyline(vLine, iLine, vwap(series), from, to, slot, priceY, ov.color);
+            break;
+        }
+        case TCE_IND_PIVOT_STANDARD:
+        case TCE_IND_PIVOT_FIBONACCI:
+        case TCE_IND_PIVOT_CAMARILLA: {
+            PivotKind k =
+                (ov.kind == TCE_IND_PIVOT_STANDARD)  ? PivotKind::Standard :
+                (ov.kind == TCE_IND_PIVOT_FIBONACCI) ? PivotKind::Fibonacci :
+                                                        PivotKind::Camarilla;
+            auto p = pivot(series, k);
+            // P는 ov.color, R/S는 ov.color2 (옅게)
+            TceColor pCol = ov.color;
+            TceColor rsCol = ov.color2;
+            emitPolyline(vLine, iLine, p.p,  from, to, slot, priceY, pCol);
+            emitPolyline(vLine, iLine, p.r1, from, to, slot, priceY, rsCol);
+            emitPolyline(vLine, iLine, p.r2, from, to, slot, priceY, rsCol);
+            emitPolyline(vLine, iLine, p.r3, from, to, slot, priceY, rsCol);
+            emitPolyline(vLine, iLine, p.s1, from, to, slot, priceY, rsCol);
+            emitPolyline(vLine, iLine, p.s2, from, to, slot, priceY, rsCol);
+            emitPolyline(vLine, iLine, p.s3, from, to, slot, priceY, rsCol);
             break;
         }
         default: break;

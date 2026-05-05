@@ -92,6 +92,11 @@ void tce_add_williams_r(TceContext* ctx, int period, TceColor color);
 void tce_add_obv(TceContext* ctx, TceColor color);
 void tce_add_mfi(TceContext* ctx, int period, TceColor color);
 
+// Pivot Points — 일봉 자동. P는 main color, R/S는 secondary color.
+void tce_add_pivot_standard(TceContext* ctx, TceColor pColor, TceColor rsColor);
+void tce_add_pivot_fibonacci(TceContext* ctx, TceColor pColor, TceColor rsColor);
+void tce_add_pivot_camarilla(TceContext* ctx, TceColor pColor, TceColor rsColor);
+
 // =====================
 // 뷰포트 (zoom/pan)
 // =====================
