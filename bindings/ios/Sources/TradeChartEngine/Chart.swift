@@ -310,6 +310,39 @@ public final class Chart {
         tce_drawing_clear(ctx)
     }
 
+    public func hitTestDrawing(at point: CGPoint) -> Int {
+        Int(tce_drawing_hit_test(ctx, Float(point.x), Float(point.y)))
+    }
+
+    public func translateDrawing(id: Int, dxPx: CGFloat, dyPx: CGFloat) {
+        tce_drawing_translate(ctx, Int32(id), Float(dxPx), Float(dyPx))
+    }
+
+    // MARK: 매수/매도 마커
+
+    @discardableResult
+    public func addTradeMarker(timestamp: TimeInterval, price: Double,
+                               isBuy: Bool, quantity: Double = 0) -> Int {
+        Int(tce_add_trade_marker(ctx, timestamp, price, isBuy ? 1 : 0, quantity))
+    }
+    public func removeTradeMarker(id: Int) { tce_remove_trade_marker(ctx, Int32(id)) }
+    public func clearTradeMarkers()         { tce_clear_trade_markers(ctx) }
+
+    // MARK: 가격 알림선
+
+    @discardableResult
+    public func addAlertLine(price: Double, color: ChartColor) -> Int {
+        Int(tce_add_alert_line(ctx, price, color.c))
+    }
+    public func updateAlertLine(id: Int, screenY: CGFloat) {
+        tce_update_alert_line_by_screen(ctx, Int32(id), Float(screenY))
+    }
+    public func removeAlertLine(id: Int) { tce_remove_alert_line(ctx, Int32(id)) }
+    public func clearAlertLines()         { tce_clear_alert_lines(ctx) }
+    public func hitTestAlertLine(screenY: CGFloat) -> Int {
+        Int(tce_hit_test_alert_line(ctx, Float(screenY)))
+    }
+
     // MARK: 뷰포트
 
     public var visibleCount: Int {
