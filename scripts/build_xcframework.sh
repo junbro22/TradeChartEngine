@@ -2,9 +2,9 @@
 # iOS xcframework 빌드: device(arm64) + simulator(arm64+x86_64)
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="$ROOT/build"
-OUT="$ROOT/bindings/ios/TradeChartEngine.xcframework"
+OUT="$ROOT/TradeChartEngine.xcframework"
 
 cd "$ROOT"
 

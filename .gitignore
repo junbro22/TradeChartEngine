@@ -1,9 +1,9 @@
 # Build
 build/
 build-*/
-*.xcframework
 DerivedData/
 .build/
+# xcframework는 Engine repo가 commit (SPM binary target이 가리킴)
 
 # CMake
 CMakeCache.txt

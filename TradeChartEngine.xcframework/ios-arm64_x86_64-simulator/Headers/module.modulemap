@@ -1,0 +1,5 @@
+module TradeChartEngineC {
+    umbrella header "tce/tce.h"
+    header "tce/types.h"
+    export *
+}
