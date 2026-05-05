@@ -37,8 +37,13 @@ public enum ColorScheme: Int32, Sendable {
 }
 
 public enum IndicatorKind: Int32, Sendable {
-    case sma = 0
-    case ema = 1
+    case sma        = 0
+    case ema        = 1
+    case bollinger  = 2
+    case rsi        = 100
+    case macd       = 101
+    case stochastic = 102
+    case atr        = 103
 }
 
 public struct ChartColor: Sendable {
@@ -151,6 +156,30 @@ public final class Chart {
 
     public func clearIndicators() {
         tce_clear_indicators(ctx)
+    }
+
+    public func addBollinger(period: Int = 20, stddev: Double = 2.0, color: ChartColor) {
+        tce_add_bollinger(ctx, Int32(period), stddev, color.c)
+    }
+
+    public func addRSI(period: Int = 14, color: ChartColor) {
+        tce_add_rsi(ctx, Int32(period), color.c)
+    }
+
+    public func addMACD(fast: Int = 12, slow: Int = 26, signal: Int = 9,
+                        lineColor: ChartColor, signalColor: ChartColor, histColor: ChartColor) {
+        tce_add_macd(ctx, Int32(fast), Int32(slow), Int32(signal),
+                     lineColor.c, signalColor.c, histColor.c)
+    }
+
+    public func addStochastic(kPeriod: Int = 14, dPeriod: Int = 3, smooth: Int = 3,
+                              kColor: ChartColor, dColor: ChartColor) {
+        tce_add_stochastic(ctx, Int32(kPeriod), Int32(dPeriod), Int32(smooth),
+                           kColor.c, dColor.c)
+    }
+
+    public func addATR(period: Int = 14, color: ChartColor) {
+        tce_add_atr(ctx, Int32(period), color.c)
     }
 
     // MARK: 뷰포트
