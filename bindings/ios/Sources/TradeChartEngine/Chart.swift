@@ -85,6 +85,15 @@ public enum Primitive: Int32, Sendable {
     case lines     = 1
 }
 
+public enum DrawingKind: Int32, Sendable {
+    case trendline       = 0
+    case horizontal      = 1
+    case vertical        = 2
+    case fibRetracement  = 3
+    case measure         = 4
+    case rectangle       = 5
+}
+
 public struct Mesh {
     public let vertices: [ChartVertex]
     public let indices: [UInt32]
@@ -272,6 +281,33 @@ public final class Chart {
     }
     public func addPivotCamarilla(pColor: ChartColor, rsColor: ChartColor) {
         tce_add_pivot_camarilla(ctx, pColor.c, rsColor.c)
+    }
+
+    // MARK: 드로잉
+
+    @discardableResult
+    public func beginDrawing(_ kind: DrawingKind,
+                             atScreenX x: CGFloat, atScreenY y: CGFloat,
+                             color: ChartColor) -> Int {
+        let id = tce_drawing_begin(
+            ctx,
+            TceDrawingKind(rawValue: UInt32(kind.rawValue)),
+            Float(x), Float(y), color.c
+        )
+        return Int(id)
+    }
+
+    public func updateDrawing(id: Int, pointIndex: Int,
+                              screenX x: CGFloat, screenY y: CGFloat) {
+        tce_drawing_update(ctx, Int32(id), Int32(pointIndex), Float(x), Float(y))
+    }
+
+    public func removeDrawing(id: Int) {
+        tce_drawing_remove(ctx, Int32(id))
+    }
+
+    public func clearDrawings() {
+        tce_drawing_clear(ctx)
     }
 
     // MARK: 뷰포트
