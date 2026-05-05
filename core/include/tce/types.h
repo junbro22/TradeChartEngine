@@ -140,6 +140,16 @@ typedef struct TceRect {
     float height;
 } TceRect;
 
+// 드로잉 객체 종류
+typedef enum TceDrawingKind {
+    TCE_DRAW_TRENDLINE          = 0,  // 2점 직선
+    TCE_DRAW_HORIZONTAL         = 1,  // 1점 (price만 사용)
+    TCE_DRAW_VERTICAL           = 2,  // 1점 (timestamp만 사용)
+    TCE_DRAW_FIB_RETRACEMENT    = 3,  // 2점 + 7개 가로 라인
+    TCE_DRAW_MEASURE            = 4,  // 2점 + 가격/시간/% 라벨
+    TCE_DRAW_RECTANGLE          = 5,  // 2점 대각선 사각형
+} TceDrawingKind;
+
 // 한 프레임의 레이아웃 정보 — 텍스트/오버레이 영역 결정에 사용
 typedef struct TceLayout {
     TceRect plot;            // 메인 가격 패널 (캔들이 그려지는 영역)
