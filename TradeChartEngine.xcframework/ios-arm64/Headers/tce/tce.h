@@ -37,6 +37,9 @@ void tce_set_series_type(TceContext* ctx, TceSeriesType type);
 void tce_set_color_scheme(TceContext* ctx, TceColorScheme scheme);
 void tce_set_size(TceContext* ctx, float width, float height);
 void tce_set_volume_panel_visible(TceContext* ctx, int visible);   // 0/1
+void tce_set_price_axis_mode(TceContext* ctx, TcePriceAxisMode mode);
+void tce_set_renko_brick_size(TceContext* ctx, double size);
+void tce_set_show_grid(TceContext* ctx, int show);
 
 // =====================
 // 지표 — Overlay (메인 패널 위에)

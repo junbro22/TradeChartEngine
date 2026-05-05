@@ -20,10 +20,20 @@ typedef struct TceCandle {
 
 // 차트 종류
 typedef enum TceSeriesType {
-    TCE_SERIES_CANDLE = 0,
-    TCE_SERIES_LINE   = 1,   // 종가 라인
-    TCE_SERIES_AREA   = 2,
+    TCE_SERIES_CANDLE       = 0,
+    TCE_SERIES_LINE         = 1,
+    TCE_SERIES_AREA         = 2,
+    TCE_SERIES_OHLC_BAR     = 3,
+    TCE_SERIES_HEIKIN_ASHI  = 4,
+    TCE_SERIES_RENKO        = 5,
 } TceSeriesType;
+
+// 가격축 모드
+typedef enum TcePriceAxisMode {
+    TCE_PRICE_LINEAR  = 0,
+    TCE_PRICE_LOG     = 1,
+    TCE_PRICE_PERCENT = 2,   // 가시 범위 첫 캔들 기준 % 변화
+} TcePriceAxisMode;
 
 // 색 스킴
 typedef enum TceColorScheme {
