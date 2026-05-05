@@ -2,6 +2,7 @@ set(TCE_SOURCES
     src/api.cpp
     src/chart.cpp
     src/data/series.cpp
+    src/data/transforms.cpp
     src/indicator/ma.cpp
     src/indicator/ema.cpp
     src/indicator/rsi.cpp
