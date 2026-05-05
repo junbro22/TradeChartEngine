@@ -2,18 +2,13 @@
 import SwiftUI
 import MetalKit
 
-/// SwiftUI 진입점. 호스트 앱은 이 뷰에 Chart 인스턴스만 전달하면 된다.
-///
-/// 기본 제공:
-/// - 핀치 줌 / 드래그 팬 / 길게 누르기 크로스헤어
-/// - Metal 렌더 파이프라인 (60fps)
-/// - 레이아웃 변경 자동 반영
-///
-/// 호스트 앱은 데이터/지표/색 스킴 등을 Chart 객체에 설정하기만 하면 됨.
-public struct TradeChartView: UIViewRepresentable {
-
+/// SwiftUI 진입점. MTKView 위에 텍스트 라벨 overlay.
+public struct TradeChartView: View {
     public let chart: Chart
     public var onCrosshairChange: ((Chart.CrosshairInfo) -> Void)?
+
+    @State private var labels: [ChartLabel] = []
+    @State private var pixelSize: CGSize = .zero
 
     public init(chart: Chart,
                 onCrosshairChange: ((Chart.CrosshairInfo) -> Void)? = nil) {
@@ -21,11 +16,83 @@ public struct TradeChartView: UIViewRepresentable {
         self.onCrosshairChange = onCrosshairChange
     }
 
-    public func makeCoordinator() -> Coordinator {
-        Coordinator(chart: chart, onCrosshairChange: onCrosshairChange)
+    public var body: some View {
+        ZStack {
+            ChartMetalLayer(
+                chart: chart,
+                onCrosshairChange: onCrosshairChange,
+                labels: $labels,
+                pixelSize: $pixelSize
+            )
+
+            // 텍스트 overlay — MTKView가 그린 그리드선 위에 글자
+            GeometryReader { geo in
+                let scale: CGFloat = pixelSize.width > 0
+                    ? geo.size.width / pixelSize.width
+                    : 1.0
+                ForEach(labels.indices, id: \.self) { i in
+                    labelView(labels[i], scale: scale)
+                }
+            }
+            .allowsHitTesting(false)   // 제스처가 MTKView로 통과
+        }
     }
 
-    public func makeUIView(context: Context) -> MTKView {
+    @ViewBuilder
+    private func labelView(_ label: ChartLabel, scale: CGFloat) -> some View {
+        let textColor = Color(red: Double(label.color.r),
+                              green: Double(label.color.g),
+                              blue:  Double(label.color.b),
+                              opacity: Double(label.color.a))
+        let bgColor = Color(red: Double(label.background.r),
+                            green: Double(label.background.g),
+                            blue:  Double(label.background.b),
+                            opacity: Double(label.background.a))
+
+        Text(label.text)
+            .font(.system(size: 10, weight: label.kind == .lastPrice ? .semibold : .regular).monospacedDigit())
+            .foregroundStyle(textColor)
+            .padding(.horizontal, label.background.a > 0 ? 4 : 0)
+            .padding(.vertical,   label.background.a > 0 ? 1 : 0)
+            .background(bgColor)
+            .cornerRadius(label.background.a > 0 ? 3 : 0)
+            .position(
+                anchorPosition(label: label, scale: scale)
+            )
+    }
+
+    private func anchorPosition(label: ChartLabel, scale: CGFloat) -> CGPoint {
+        // label.x/y는 pixel 좌표. SwiftUI는 point.
+        let px = label.x * scale
+        let py = label.y * scale
+        // SwiftUI .position은 view의 center 기준. anchor 따라 보정.
+        // 텍스트 폭/높이 정확히 모르므로 anchor에 따라 적당한 offset 적용.
+        switch label.anchor {
+        case .leftCenter:   return CGPoint(x: px + 20, y: py)
+        case .rightCenter:  return CGPoint(x: px - 20, y: py)
+        case .centerTop:    return CGPoint(x: px,      y: py + 8)
+        case .centerBottom: return CGPoint(x: px,      y: py - 8)
+        case .centerCenter: return CGPoint(x: px,      y: py)
+        }
+    }
+}
+
+// MARK: - Metal layer (UIViewRepresentable)
+
+private struct ChartMetalLayer: UIViewRepresentable {
+    let chart: Chart
+    var onCrosshairChange: ((Chart.CrosshairInfo) -> Void)?
+    @Binding var labels: [ChartLabel]
+    @Binding var pixelSize: CGSize
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(chart: chart,
+                    onCrosshairChange: onCrosshairChange,
+                    setLabels: { labels = $0 },
+                    setPixelSize: { pixelSize = $0 })
+    }
+
+    func makeUIView(context: Context) -> MTKView {
         let v = MTKView(frame: .zero, device: MTLCreateSystemDefaultDevice())
         v.colorPixelFormat = .bgra8Unorm
         v.clearColor = MTLClearColorMake(0.07, 0.08, 0.11, 1.0)
@@ -46,21 +113,26 @@ public struct TradeChartView: UIViewRepresentable {
         return v
     }
 
-    public func updateUIView(_ uiView: MTKView, context: Context) {
+    func updateUIView(_ uiView: MTKView, context: Context) {
         context.coordinator.onCrosshairChange = onCrosshairChange
         uiView.setNeedsDisplay(uiView.bounds)
     }
 
-    // MARK: - Coordinator
-
-    public final class Coordinator: NSObject, MTKViewDelegate {
+    final class Coordinator: NSObject, MTKViewDelegate {
         let chart: Chart
         var onCrosshairChange: ((Chart.CrosshairInfo) -> Void)?
+        let setLabels: ([ChartLabel]) -> Void
+        let setPixelSize: (CGSize) -> Void
         private var renderer: MetalRenderer?
 
-        init(chart: Chart, onCrosshairChange: ((Chart.CrosshairInfo) -> Void)?) {
+        init(chart: Chart,
+             onCrosshairChange: ((Chart.CrosshairInfo) -> Void)?,
+             setLabels: @escaping ([ChartLabel]) -> Void,
+             setPixelSize: @escaping (CGSize) -> Void) {
             self.chart = chart
             self.onCrosshairChange = onCrosshairChange
+            self.setLabels = setLabels
+            self.setPixelSize = setPixelSize
         }
 
         func attach(view: MTKView) {
@@ -68,20 +140,26 @@ public struct TradeChartView: UIViewRepresentable {
             renderer = try? MetalRenderer(device: device, pixelFormat: view.colorPixelFormat)
         }
 
-        public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+        func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
             chart.setSize(width: size.width, height: size.height)
+            setPixelSize(size)
         }
 
-        public func draw(in view: MTKView) {
+        func draw(in view: MTKView) {
             guard let renderer,
                   let drawable = view.currentDrawable,
                   let pass = view.currentRenderPassDescriptor else { return }
             chart.setSize(width: view.drawableSize.width, height: view.drawableSize.height)
             let meshes = chart.buildFrame()
+            let labels = chart.buildLabels()
             renderer.render(meshes: meshes,
                             drawable: drawable,
                             descriptor: pass,
                             viewportSize: view.drawableSize)
+            DispatchQueue.main.async { [weak self] in
+                self?.setLabels(labels)
+                self?.setPixelSize(view.drawableSize)
+            }
         }
 
         @objc func onPinch(_ g: UIPinchGestureRecognizer) {
