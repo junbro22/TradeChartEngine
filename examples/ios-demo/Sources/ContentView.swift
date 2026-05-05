@@ -5,13 +5,22 @@ struct ContentView: View {
 
     @State private var chart: Chart = {
         let c = Chart()
-        c.setHistory(DemoData.generate(count: 200))
+        let candles = DemoData.generate(count: 200)
+        c.setHistory(candles)
         c.visibleCount = 80
         c.setColorScheme(.korea)
         c.setSeriesType(.candle)
         c.setVolumePanelVisible(true)
         c.addIndicator(.sma, period: 20, color: ChartColor(r: 1.00, g: 0.85, b: 0.20))
         c.addIndicator(.ema, period: 60, color: ChartColor(r: 0.45, g: 0.80, b: 1.00))
+
+        // 데모 — 매수 50번째, 매도 130번째 캔들에 마커
+        if candles.count > 130 {
+            c.addTradeMarker(timestamp: candles[50].timestamp,
+                             price: candles[50].low, isBuy: true, quantity: 1500)
+            c.addTradeMarker(timestamp: candles[130].timestamp,
+                             price: candles[130].high, isBuy: false, quantity: 800)
+        }
         return c
     }()
 
