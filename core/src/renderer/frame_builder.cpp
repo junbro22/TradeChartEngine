@@ -192,8 +192,10 @@ void FrameBuilder::build(const Series& series,
                          const std::vector<OverlaySpec>& overlays,
                          const std::vector<SubpanelSpec>& subpanels,
                          const CrosshairState& cross,
-                         FrameOutput& out) {
+                         FrameOutput& out,
+                         PanelLayout& layout) {
     out.clear();
+    layout = PanelLayout{};
 
     const auto& cs = series.candles();
     if (cs.empty()) return;
@@ -245,6 +247,13 @@ void FrameBuilder::build(const Series& series,
         double pad = (priceY.maxP - priceY.minP) * 0.05;
         priceY.minP -= pad; priceY.maxP += pad;
     }
+
+    // outparam: 라벨 빌더가 같은 매핑을 사용
+    layout.mainTop = mainTop;
+    layout.mainBottom = mainBottom;
+    layout.priceMin = priceY.minP;
+    layout.priceMax = priceY.maxP;
+    layout.subpanelCount = subCount;
 
     std::vector<TceVertex> vTri, vLine;
     std::vector<uint32_t>  iTri, iLine;

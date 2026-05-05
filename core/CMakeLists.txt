@@ -11,6 +11,7 @@ set(TCE_SOURCES
     src/indicator/atr.cpp
     src/viewport/viewport.cpp
     src/renderer/frame_builder.cpp
+    src/renderer/label_builder.cpp
 )
 
 if(TCE_BUILD_SHARED)

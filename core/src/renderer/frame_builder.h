@@ -64,6 +64,15 @@ private:
     std::vector<TceMesh>                meshHeaders_;
 };
 
+// frame 빌드 후 레이아웃·가격 범위를 외부에 노출 (label_builder가 사용)
+struct PanelLayout {
+    float  mainTop = 0;
+    float  mainBottom = 0;
+    double priceMin = 0;
+    double priceMax = 0;
+    int    subpanelCount = 0;
+};
+
 class FrameBuilder {
 public:
     void build(const Series& series,
@@ -72,7 +81,8 @@ public:
                const std::vector<OverlaySpec>& overlays,
                const std::vector<SubpanelSpec>& subpanels,
                const CrosshairState& crosshair,
-               FrameOutput& out);
+               FrameOutput& out,
+               PanelLayout& layout);
 };
 
 } // namespace tce
