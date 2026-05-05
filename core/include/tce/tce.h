@@ -67,6 +67,32 @@ void tce_add_stochastic(TceContext* ctx, int kPeriod, int dPeriod, int smooth,
 void tce_add_atr(TceContext* ctx, int period, TceColor color);
 
 // =====================
+// 추가 Overlay (Phase 3)
+// =====================
+// 일목균형표 — 전환선 색 + 기준선 색 (선행스팬/후행스팬 색은 엔진 기본값)
+void tce_add_ichimoku(TceContext* ctx, int tenkan, int kijun, int senkouB, int displacement,
+                      TceColor tenkanColor, TceColor kijunColor);
+
+// Parabolic SAR (step, max)
+void tce_add_psar(TceContext* ctx, double step, double maxStep, TceColor color);
+
+// SuperTrend (period, multiplier)
+void tce_add_supertrend(TceContext* ctx, int period, double multiplier, TceColor color);
+
+// VWAP — session 자동
+void tce_add_vwap(TceContext* ctx, TceColor color);
+
+// =====================
+// 추가 Subpanel (Phase 3)
+// =====================
+void tce_add_dmi(TceContext* ctx, int period,
+                 TceColor plusDIColor, TceColor minusDIColor, TceColor adxColor);
+void tce_add_cci(TceContext* ctx, int period, TceColor color);
+void tce_add_williams_r(TceContext* ctx, int period, TceColor color);
+void tce_add_obv(TceContext* ctx, TceColor color);
+void tce_add_mfi(TceContext* ctx, int period, TceColor color);
+
+// =====================
 // 뷰포트 (zoom/pan)
 // =====================
 // 보이는 캔들 수 (정수)

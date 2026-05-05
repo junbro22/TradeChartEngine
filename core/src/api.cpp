@@ -102,6 +102,58 @@ void tce_add_atr(TceContext* ctx, int period, TceColor color) {
     ctx->chart.addSubpanel(TCE_IND_ATR, period, 0, 0, color);
 }
 
+void tce_add_ichimoku(TceContext* ctx, int tenkan, int kijun, int /*senkouB*/, int /*displacement*/,
+                      TceColor tenkanColor, TceColor kijunColor) {
+    if (!ctx) return;
+    // 현재 frame_builder는 (9, 26, 52, 26) 고정. 향후 OverlaySpec 확장 시 사용.
+    ctx->chart.addOverlay(TCE_IND_ICHIMOKU, tenkan > 0 ? tenkan : 9, kijun > 0 ? kijun : 26,
+                          tenkanColor, kijunColor);
+}
+
+void tce_add_psar(TceContext* ctx, double step, double maxStep, TceColor color) {
+    if (!ctx) return;
+    (void)maxStep; // OverlaySpec 한계 — 향후 확장
+    ctx->chart.addOverlay(TCE_IND_PSAR, 0, step > 0 ? step : 0.02, color);
+}
+
+void tce_add_supertrend(TceContext* ctx, int period, double multiplier, TceColor color) {
+    if (!ctx) return;
+    ctx->chart.addOverlay(TCE_IND_SUPERTREND, period > 0 ? period : 10,
+                          multiplier > 0 ? multiplier : 3.0, color);
+}
+
+void tce_add_vwap(TceContext* ctx, TceColor color) {
+    if (!ctx) return;
+    ctx->chart.addOverlay(TCE_IND_VWAP, 0, 0.0, color);
+}
+
+void tce_add_dmi(TceContext* ctx, int period,
+                 TceColor plusDIColor, TceColor minusDIColor, TceColor adxColor) {
+    if (!ctx) return;
+    ctx->chart.addSubpanel(TCE_IND_DMI_ADX, period, 0, 0,
+                           plusDIColor, minusDIColor, adxColor);
+}
+
+void tce_add_cci(TceContext* ctx, int period, TceColor color) {
+    if (!ctx) return;
+    ctx->chart.addSubpanel(TCE_IND_CCI, period, 0, 0, color);
+}
+
+void tce_add_williams_r(TceContext* ctx, int period, TceColor color) {
+    if (!ctx) return;
+    ctx->chart.addSubpanel(TCE_IND_WILLIAMS_R, period, 0, 0, color);
+}
+
+void tce_add_obv(TceContext* ctx, TceColor color) {
+    if (!ctx) return;
+    ctx->chart.addSubpanel(TCE_IND_OBV, 0, 0, 0, color);
+}
+
+void tce_add_mfi(TceContext* ctx, int period, TceColor color) {
+    if (!ctx) return;
+    ctx->chart.addSubpanel(TCE_IND_MFI, period, 0, 0, color);
+}
+
 void tce_set_visible_count(TceContext* ctx, int count) {
     if (ctx) ctx->chart.viewport().setVisibleCount(count);
 }

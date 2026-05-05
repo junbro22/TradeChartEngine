@@ -8,6 +8,15 @@
 #include "indicator/bollinger.h"
 #include "indicator/stochastic.h"
 #include "indicator/atr.h"
+#include "indicator/ichimoku.h"
+#include "indicator/psar.h"
+#include "indicator/supertrend.h"
+#include "indicator/vwap.h"
+#include "indicator/dmi.h"
+#include "indicator/cci.h"
+#include "indicator/williams_r.h"
+#include "indicator/obv.h"
+#include "indicator/mfi.h"
 #include <algorithm>
 #include <limits>
 
@@ -182,6 +191,50 @@ void buildSubpanel(std::vector<TceVertex>& vTri, std::vector<uint32_t>& iTri,
         emitPolyline(vLine, iLine, a, from, to, slot, ymap, spec.color1);
         return;
     }
+    if (spec.kind == TCE_IND_DMI_ADX) {
+        auto d = dmi(series, spec.p1);
+        ymap.minP = 0; ymap.maxP = 100;
+        emitPolyline(vLine, iLine, d.plusDI,  from, to, slot, ymap, spec.color1);
+        emitPolyline(vLine, iLine, d.minusDI, from, to, slot, ymap, spec.color2);
+        emitPolyline(vLine, iLine, d.adx,     from, to, slot, ymap, spec.color3);
+        return;
+    }
+    if (spec.kind == TCE_IND_CCI) {
+        auto c = cci(series, spec.p1);
+        auto rng = rangeOf(c);
+        ymap.minP = std::min(rng.first, -200.0);
+        ymap.maxP = std::max(rng.second, 200.0);
+        TceColor guide{0.4f, 0.4f, 0.5f, 0.4f};
+        emitLine(vLine, iLine, 0, ymap.yFor(100),  slot * (to - from), ymap.yFor(100),  guide);
+        emitLine(vLine, iLine, 0, ymap.yFor(-100), slot * (to - from), ymap.yFor(-100), guide);
+        emitPolyline(vLine, iLine, c, from, to, slot, ymap, spec.color1);
+        return;
+    }
+    if (spec.kind == TCE_IND_WILLIAMS_R) {
+        auto w = williamsR(series, spec.p1);
+        ymap.minP = -100; ymap.maxP = 0;
+        TceColor guide{0.4f, 0.4f, 0.5f, 0.4f};
+        emitLine(vLine, iLine, 0, ymap.yFor(-20), slot * (to - from), ymap.yFor(-20), guide);
+        emitLine(vLine, iLine, 0, ymap.yFor(-80), slot * (to - from), ymap.yFor(-80), guide);
+        emitPolyline(vLine, iLine, w, from, to, slot, ymap, spec.color1);
+        return;
+    }
+    if (spec.kind == TCE_IND_OBV) {
+        auto o = obv(series);
+        auto rng = rangeOf(o);
+        ymap.minP = rng.first; ymap.maxP = rng.second;
+        emitPolyline(vLine, iLine, o, from, to, slot, ymap, spec.color1);
+        return;
+    }
+    if (spec.kind == TCE_IND_MFI) {
+        auto m = mfi(series, spec.p1);
+        ymap.minP = 0; ymap.maxP = 100;
+        TceColor guide{0.4f, 0.4f, 0.5f, 0.4f};
+        emitLine(vLine, iLine, 0, ymap.yFor(20), slot * (to - from), ymap.yFor(20), guide);
+        emitLine(vLine, iLine, 0, ymap.yFor(80), slot * (to - from), ymap.yFor(80), guide);
+        emitPolyline(vLine, iLine, m, from, to, slot, ymap, spec.color1);
+        return;
+    }
 }
 
 } // namespace
@@ -295,15 +348,78 @@ void FrameBuilder::build(const Series& series,
 
     // Overlay 지표
     for (const auto& ov : overlays) {
-        if (ov.kind == TCE_IND_SMA) {
+        switch (ov.kind) {
+        case TCE_IND_SMA:
             emitPolyline(vLine, iLine, sma(series, ov.period), from, to, slot, priceY, ov.color);
-        } else if (ov.kind == TCE_IND_EMA) {
+            break;
+        case TCE_IND_EMA:
             emitPolyline(vLine, iLine, ema(series, ov.period), from, to, slot, priceY, ov.color);
-        } else if (ov.kind == TCE_IND_BOLLINGER) {
+            break;
+        case TCE_IND_BOLLINGER: {
             auto bb = bollinger(series, ov.period, ov.param);
             emitPolyline(vLine, iLine, bb.middle, from, to, slot, priceY, ov.color);
             emitPolyline(vLine, iLine, bb.upper,  from, to, slot, priceY, ov.color2);
             emitPolyline(vLine, iLine, bb.lower,  from, to, slot, priceY, ov.color2);
+            break;
+        }
+        case TCE_IND_ICHIMOKU: {
+            auto ic = ichimoku(series, 9, 26, 52, 26);
+            emitPolyline(vLine, iLine, ic.tenkan, from, to, slot, priceY, ov.color);
+            TceColor kijunCol{ov.color2.r, ov.color2.g, ov.color2.b, ov.color2.a};
+            emitPolyline(vLine, iLine, ic.kijun,  from, to, slot, priceY, kijunCol);
+            // senkouA / senkouB는 displacement 만큼 미래로 — 가시 범위 안만 그림
+            // 인덱스가 series.size + displacement까지 있으므로 to 범위 한도 내에서 그림
+            std::vector<std::optional<double>> aA(cs.size()), aB(cs.size());
+            for (size_t i = 0; i < cs.size(); ++i) {
+                if (i < ic.senkouA.size()) aA[i] = ic.senkouA[i];
+                if (i < ic.senkouB.size()) aB[i] = ic.senkouB[i];
+            }
+            TceColor sA{0.20f, 0.85f, 0.45f, 0.85f};
+            TceColor sB{0.95f, 0.45f, 0.45f, 0.85f};
+            emitPolyline(vLine, iLine, aA, from, to, slot, priceY, sA);
+            emitPolyline(vLine, iLine, aB, from, to, slot, priceY, sB);
+            // 후행스팬 (chikou)
+            TceColor ck{0.65f, 0.45f, 0.95f, 0.85f};
+            emitPolyline(vLine, iLine, ic.chikou, from, to, slot, priceY, ck);
+            break;
+        }
+        case TCE_IND_PSAR: {
+            auto p = psar(series, ov.param > 0 ? ov.param : 0.02, 0.2);
+            const float r = std::max(2.0f, slot * 0.20f);
+            for (size_t i = from; i < to; ++i) {
+                if (!p[i]) continue;
+                float cx = (static_cast<float>(i - from) + 0.5f) * slot;
+                float cy = priceY.yFor(*p[i]);
+                emitRect(vTri, iTri, cx - r, cy - r, cx + r, cy + r, ov.color);
+            }
+            break;
+        }
+        case TCE_IND_SUPERTREND: {
+            auto st = superTrend(series, ov.period > 0 ? ov.period : 10,
+                                 ov.param > 0 ? ov.param : 3.0);
+            // 방향 따라 색 분기 (양봉 색/음봉 색)
+            std::optional<float> px, py;
+            int prevDir = 0;
+            for (size_t i = from; i < to; ++i) {
+                if (!st.line[i]) { px.reset(); py.reset(); continue; }
+                float x = (static_cast<float>(i - from) + 0.5f) * slot;
+                float y = priceY.yFor(*st.line[i]);
+                if (px && py && st.direction[i] == prevDir) {
+                    TceColor col = (st.direction[i] == 1)
+                        ? candleColor(true,  cfg.scheme)
+                        : candleColor(false, cfg.scheme);
+                    emitLine(vLine, iLine, *px, *py, x, y, col);
+                }
+                prevDir = st.direction[i];
+                px = x; py = y;
+            }
+            break;
+        }
+        case TCE_IND_VWAP: {
+            emitPolyline(vLine, iLine, vwap(series), from, to, slot, priceY, ov.color);
+            break;
+        }
+        default: break;
         }
     }
 

@@ -9,6 +9,15 @@ set(TCE_SOURCES
     src/indicator/bollinger.cpp
     src/indicator/stochastic.cpp
     src/indicator/atr.cpp
+    src/indicator/ichimoku.cpp
+    src/indicator/psar.cpp
+    src/indicator/supertrend.cpp
+    src/indicator/vwap.cpp
+    src/indicator/dmi.cpp
+    src/indicator/cci.cpp
+    src/indicator/williams_r.cpp
+    src/indicator/obv.cpp
+    src/indicator/mfi.cpp
     src/viewport/viewport.cpp
     src/renderer/frame_builder.cpp
     src/renderer/label_builder.cpp
