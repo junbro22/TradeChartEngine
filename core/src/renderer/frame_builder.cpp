@@ -18,7 +18,9 @@
 #include "indicator/obv.h"
 #include "indicator/mfi.h"
 #include "indicator/pivot.h"
+#include "data/transforms.h"
 #include <algorithm>
+#include <cmath>
 #include <limits>
 
 namespace tce {
@@ -64,9 +66,23 @@ constexpr float PANEL_GAP = 4.0f;
 struct YMap {
     float top, bottom;
     double minP, maxP;
+    TcePriceAxisMode mode = TCE_PRICE_LINEAR;
+    double percentBase = 0.0;       // percent 모드의 기준 가격
+
+    double normalize(double v) const {
+        switch (mode) {
+        case TCE_PRICE_LOG:
+            return (v > 0) ? std::log(v) : 0.0;
+        case TCE_PRICE_PERCENT:
+            return (percentBase > 0) ? (v / percentBase - 1.0) * 100.0 : 0.0;
+        default:
+            return v;
+        }
+    }
     float yFor(double v) const {
+        double nv = normalize(v);
         if (maxP == minP) return (top + bottom) * 0.5f;
-        double t = (v - minP) / (maxP - minP);
+        double t = (nv - minP) / (maxP - minP);
         return static_cast<float>(bottom - t * (bottom - top));
     }
 };
@@ -286,19 +302,27 @@ void FrameBuilder::build(const Series& series,
     const float perSubH = subBlockH / std::max(1, subCount);
 
     // ===== 메인 패널 — 가격 Y 매핑 =====
-    YMap priceY{
-        mainTop + 8.0f,
-        mainBottom - 8.0f,
-        series.minLowInRange(from, to),
-        series.maxHighInRange(from, to)
-    };
+    YMap priceY{};
+    priceY.top = mainTop + 8.0f;
+    priceY.bottom = mainBottom - 8.0f;
+    priceY.mode = cfg.priceMode;
+    if (cfg.priceMode == TCE_PRICE_PERCENT && from < cs.size()) {
+        priceY.percentBase = cs[from].close;
+    }
+    {
+        double rawMin = series.minLowInRange(from, to);
+        double rawMax = series.maxHighInRange(from, to);
+        priceY.minP = priceY.normalize(rawMin);
+        priceY.maxP = priceY.normalize(rawMax);
+        if (priceY.minP > priceY.maxP) std::swap(priceY.minP, priceY.maxP);
+    }
     // BB가 메인보다 위/아래로 나갈 수 있어 그것까지 포함
     for (const auto& ov : overlays) {
         if (ov.kind == TCE_IND_BOLLINGER) {
             auto bb = bollinger(series, ov.period, ov.param);
             for (size_t i = from; i < to; ++i) {
-                if (bb.upper[i]) priceY.maxP = std::max(priceY.maxP, *bb.upper[i]);
-                if (bb.lower[i]) priceY.minP = std::min(priceY.minP, *bb.lower[i]);
+                if (bb.upper[i]) priceY.maxP = std::max(priceY.maxP, priceY.normalize(*bb.upper[i]));
+                if (bb.lower[i]) priceY.minP = std::min(priceY.minP, priceY.normalize(*bb.lower[i]));
             }
         }
     }
@@ -318,8 +342,12 @@ void FrameBuilder::build(const Series& series,
     std::vector<TceVertex> vTri, vLine;
     std::vector<uint32_t>  iTri, iLine;
 
-    // 캔들 / 라인
-    if (cfg.seriesType == TCE_SERIES_CANDLE) {
+    // 캔들/라인/면적/OHLC bar 분기 (Heikin-Ashi/Renko는 Chart에서 변환된 시리즈가 들어오므로 캔들 모양으로 처리)
+    auto isCandleShape = [&](TceSeriesType t) {
+        return t == TCE_SERIES_CANDLE || t == TCE_SERIES_HEIKIN_ASHI || t == TCE_SERIES_RENKO;
+    };
+
+    if (isCandleShape(cfg.seriesType)) {
         const float candleW = std::max(1.0f, slot * 0.65f);
         for (size_t i = from; i < to; ++i) {
             const auto& c = cs[i];
@@ -336,7 +364,43 @@ void FrameBuilder::build(const Series& series,
             if (yBottom - yTop < 1.0f) yBottom = yTop + 1.0f;
             emitRect(vTri, iTri, cx - candleW * 0.5f, yTop, cx + candleW * 0.5f, yBottom, col);
         }
-    } else {
+    } else if (cfg.seriesType == TCE_SERIES_OHLC_BAR) {
+        const float tickW = std::max(2.0f, slot * 0.30f);
+        for (size_t i = from; i < to; ++i) {
+            const auto& c = cs[i];
+            const bool up = c.close >= c.open;
+            const TceColor col = candleColor(up, cfg.scheme);
+            const float cx = (static_cast<float>(i - from) + 0.5f) * slot;
+            // 세로 H/L
+            emitLine(vLine, iLine, cx, priceY.yFor(c.high), cx, priceY.yFor(c.low), col);
+            // 좌측 open tick
+            float yo = priceY.yFor(c.open);
+            emitLine(vLine, iLine, cx - tickW, yo, cx, yo, col);
+            // 우측 close tick
+            float yc = priceY.yFor(c.close);
+            emitLine(vLine, iLine, cx, yc, cx + tickW, yc, col);
+        }
+    } else if (cfg.seriesType == TCE_SERIES_AREA) {
+        const TceColor lineCol{0.30f, 0.65f, 1.0f, 1.0f};
+        const TceColor fillCol{0.30f, 0.65f, 1.0f, 0.25f};
+        const float bottomY = mainBottom - 8.0f;
+        for (size_t i = from + 1; i < to; ++i) {
+            float x1 = (static_cast<float>(i - 1 - from) + 0.5f) * slot;
+            float x2 = (static_cast<float>(i - from) + 0.5f) * slot;
+            float y1 = priceY.yFor(cs[i - 1].close);
+            float y2 = priceY.yFor(cs[i].close);
+            // 면적: 사각형 (x1,y1)-(x2,bottomY) — quad 두 개의 삼각형
+            uint32_t base = static_cast<uint32_t>(vTri.size());
+            vTri.push_back({x1, y1,      fillCol.r, fillCol.g, fillCol.b, fillCol.a});
+            vTri.push_back({x2, y2,      fillCol.r, fillCol.g, fillCol.b, fillCol.a});
+            vTri.push_back({x2, bottomY, fillCol.r, fillCol.g, fillCol.b, fillCol.a});
+            vTri.push_back({x1, bottomY, fillCol.r, fillCol.g, fillCol.b, fillCol.a});
+            iTri.push_back(base);     iTri.push_back(base + 1); iTri.push_back(base + 2);
+            iTri.push_back(base);     iTri.push_back(base + 2); iTri.push_back(base + 3);
+            // 라인
+            emitLine(vLine, iLine, x1, y1, x2, y2, lineCol);
+        }
+    } else { // LINE
         const TceColor col{0.30f, 0.65f, 1.0f, 1.0f};
         for (size_t i = from + 1; i < to; ++i) {
             float x1 = (static_cast<float>(i - 1 - from) + 0.5f) * slot;

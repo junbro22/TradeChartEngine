@@ -38,9 +38,12 @@ struct CrosshairState {
 };
 
 struct ChartConfig {
-    TceSeriesType  seriesType    = TCE_SERIES_CANDLE;
-    TceColorScheme scheme        = TCE_SCHEME_KOREA;
-    bool           volumeVisible = true;
+    TceSeriesType    seriesType    = TCE_SERIES_CANDLE;
+    TceColorScheme   scheme        = TCE_SCHEME_KOREA;
+    bool             volumeVisible = true;
+    TcePriceAxisMode priceMode     = TCE_PRICE_LINEAR;
+    double           renkoBrickSize = 0.0;   // 0이면 자동 (가시 범위 평균의 1%)
+    bool             showGrid      = true;
 };
 
 class FrameOutput {

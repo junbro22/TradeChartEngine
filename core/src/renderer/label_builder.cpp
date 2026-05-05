@@ -107,7 +107,7 @@ std::string formatTimeFull(double ts) {
 
 void LabelBuilder::build(const Series& series,
                          const Viewport& vp,
-                         const ChartConfig& /*cfg*/,
+                         const ChartConfig& cfg,
                          const CrosshairState& cross,
                          const PanelLayout& layout,
                          FrameOutput& meshOut,
@@ -144,7 +144,7 @@ void LabelBuilder::build(const Series& series,
     for (double p : prices) {
         float y = yFor(p);
         if (y < panelTop || y > panelBottom) continue;
-        emitLine(vGrid, iGrid, 0, y, W, y, gridCol);
+        if (cfg.showGrid) emitLine(vGrid, iGrid, 0, y, W, y, gridCol);
         // 라벨: priceAxis 영역 중앙. wrapper는 그대로 .position() 으로 사용.
         labelOut.add(formatPrice(p),
                      rightAxisX, y,
@@ -160,7 +160,7 @@ void LabelBuilder::build(const Series& series,
     const float timeAxisY = layout.timeAxis.y + layout.timeAxis.h * 0.5f;
     for (size_t i = from; i < to; i += step) {
         float x = (static_cast<float>(i - from) + 0.5f) * slot;
-        emitLine(vGrid, iGrid, x, panelTop, x, plotH, gridCol);
+        if (cfg.showGrid) emitLine(vGrid, iGrid, x, panelTop, x, plotH, gridCol);
         labelOut.add(formatTimeShort(cs[i].timestamp),
                      x, timeAxisY,
                      TCE_ANCHOR_CENTER_CENTER,
