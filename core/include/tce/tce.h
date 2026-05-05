@@ -39,12 +39,32 @@ void tce_set_size(TceContext* ctx, float width, float height);
 void tce_set_volume_panel_visible(TceContext* ctx, int visible);   // 0/1
 
 // =====================
-// 지표
+// 지표 — Overlay (메인 패널 위에)
 // =====================
 // 같은 (kind, period) 조합은 한 번만 추가됨
 void tce_add_indicator(TceContext* ctx, TceIndicatorKind kind, int period, TceColor color);
 void tce_remove_indicator(TceContext* ctx, TceIndicatorKind kind, int period);
 void tce_clear_indicators(TceContext* ctx);
+
+// Bollinger Bands (overlay) — period 기준선 SMA, ±stddev * sigma
+void tce_add_bollinger(TceContext* ctx, int period, double stddev, TceColor color);
+
+// =====================
+// 지표 — Subpanel
+// =====================
+// RSI(period) — 보통 14
+void tce_add_rsi(TceContext* ctx, int period, TceColor color);
+
+// MACD(fast=12, slow=26, signal=9) — line / signal / histogram 3개 시리즈
+void tce_add_macd(TceContext* ctx, int fast, int slow, int signal,
+                  TceColor lineColor, TceColor signalColor, TceColor histColor);
+
+// Stochastic(k_period=14, d_period=3, smooth=3) — %K / %D
+void tce_add_stochastic(TceContext* ctx, int kPeriod, int dPeriod, int smooth,
+                        TceColor kColor, TceColor dColor);
+
+// ATR(period=14)
+void tce_add_atr(TceContext* ctx, int period, TceColor color);
 
 // =====================
 // 뷰포트 (zoom/pan)

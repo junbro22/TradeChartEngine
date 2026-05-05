@@ -31,10 +31,18 @@ typedef enum TceColorScheme {
     TCE_SCHEME_US    = 1,    // 양봉 초록 / 음봉 빨강
 } TceColorScheme;
 
-// 지표 종류 (Phase 1)
+// 지표 종류
 typedef enum TceIndicatorKind {
-    TCE_IND_SMA = 0,
-    TCE_IND_EMA = 1,
+    // Overlay (메인 패널)
+    TCE_IND_SMA               = 0,
+    TCE_IND_EMA               = 1,
+    TCE_IND_BOLLINGER         = 2,   // period + stddev (default 2.0)
+
+    // Subpanel
+    TCE_IND_RSI               = 100, // period
+    TCE_IND_MACD              = 101, // fast, slow, signal
+    TCE_IND_STOCHASTIC        = 102, // k_period, d_period, smooth
+    TCE_IND_ATR               = 103, // period
 } TceIndicatorKind;
 
 // RGBA 0..1
