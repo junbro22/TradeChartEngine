@@ -17,20 +17,43 @@ void Chart::updateLast(double close, double volume) {
     series_.updateLast(close, volume);
 }
 
-void Chart::addIndicator(TceIndicatorKind k, int period, TceColor c) {
-    auto it = std::find_if(indicators_.begin(), indicators_.end(),
-        [&](const IndicatorSpec& s) { return s.kind == k && s.period == period; });
-    if (it != indicators_.end()) { it->color = c; return; }
-    indicators_.push_back({k, period, c});
+void Chart::addOverlay(TceIndicatorKind k, int period, double param,
+                       TceColor color, TceColor color2) {
+    auto it = std::find_if(overlays_.begin(), overlays_.end(),
+        [&](const OverlaySpec& s) { return s.kind == k && s.period == period; });
+    if (it != overlays_.end()) {
+        it->param = param; it->color = color; it->color2 = color2; return;
+    }
+    overlays_.push_back({k, period, param, color, color2});
 }
 
-void Chart::removeIndicator(TceIndicatorKind k, int period) {
-    indicators_.erase(std::remove_if(indicators_.begin(), indicators_.end(),
-        [&](const IndicatorSpec& s) { return s.kind == k && s.period == period; }),
-        indicators_.end());
+void Chart::removeOverlay(TceIndicatorKind k, int period) {
+    overlays_.erase(std::remove_if(overlays_.begin(), overlays_.end(),
+        [&](const OverlaySpec& s) { return s.kind == k && s.period == period; }),
+        overlays_.end());
 }
 
-void Chart::clearIndicators() { indicators_.clear(); }
+void Chart::clearOverlays() { overlays_.clear(); }
+
+void Chart::addSubpanel(TceIndicatorKind k, int p1, int p2, int p3,
+                        TceColor color1, TceColor color2, TceColor color3) {
+    auto it = std::find_if(subpanels_.begin(), subpanels_.end(),
+        [&](const SubpanelSpec& s) { return s.kind == k; });
+    if (it != subpanels_.end()) {
+        it->p1 = p1; it->p2 = p2; it->p3 = p3;
+        it->color1 = color1; it->color2 = color2; it->color3 = color3;
+        return;
+    }
+    subpanels_.push_back({k, p1, p2, p3, color1, color2, color3});
+}
+
+void Chart::removeSubpanel(TceIndicatorKind k) {
+    subpanels_.erase(std::remove_if(subpanels_.begin(), subpanels_.end(),
+        [&](const SubpanelSpec& s) { return s.kind == k; }),
+        subpanels_.end());
+}
+
+void Chart::clearSubpanels() { subpanels_.clear(); }
 
 void Chart::setCrosshair(float x, float y) {
     crosshair_.visible = true;
@@ -41,8 +64,6 @@ void Chart::setCrosshair(float x, float y) {
     if (idx >= 0 && static_cast<size_t>(idx) < series_.size()) {
         crosshair_.timestamp = series_.candles()[idx].timestamp;
     }
-    // price는 frame_builder의 YMap을 거쳐야 정확. 단순 추정으로:
-    // 미리 계산해두지 않으면 정확한 매핑이 어려워 후속 패치 대상.
 }
 
 void Chart::clearCrosshair() {
@@ -50,7 +71,7 @@ void Chart::clearCrosshair() {
 }
 
 FrameOutput& Chart::buildFrame() {
-    builder_.build(series_, viewport_, config_, indicators_, crosshair_, output_);
+    builder_.build(series_, viewport_, config_, overlays_, subpanels_, crosshair_, output_);
     return output_;
 }
 

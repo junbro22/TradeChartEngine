@@ -4,6 +4,11 @@ set(TCE_SOURCES
     src/data/series.cpp
     src/indicator/ma.cpp
     src/indicator/ema.cpp
+    src/indicator/rsi.cpp
+    src/indicator/macd.cpp
+    src/indicator/bollinger.cpp
+    src/indicator/stochastic.cpp
+    src/indicator/atr.cpp
     src/viewport/viewport.cpp
     src/renderer/frame_builder.cpp
 )
