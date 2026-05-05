@@ -80,6 +80,12 @@ int    tce_get_candle(const TceContext* ctx, size_t index, TceCandle* out);
 
 /// 메인 패널 그리기 모드 변경 (캔들/라인/Area/OHLC bar/Heikin-Ashi/Renko).
 /// Heikin-Ashi/Renko는 엔진 내부에서 시계열을 변환해 그린다 — 원본은 보존.
+///
+/// 지표 계산 정책 (host가 알아야 하는 결정):
+///   - Heikin-Ashi: 메인 패널은 HA 캔들로 그리지만, 모든 지표(SMA/RSI/MACD/...)는
+///     원본 OHLC 기준으로 계산된다 (시리즈 길이 동일하므로 인덱스 일치).
+///   - Renko: 메인 패널은 brick 시리즈(원본보다 짧을 수 있음)로 그리고,
+///     지표도 brick 시리즈 기준으로 계산된다 (원본 인덱스와 매핑할 수 없으므로).
 void tce_set_series_type(TceContext* ctx, TceSeriesType type);
 
 /// 양봉/음봉 색 스킴 변경 — 한국식(빨강/파랑) 또는 미국식(초록/빨강).
@@ -142,9 +148,12 @@ void tce_add_psar(TceContext* ctx, double step, double maxStep, TceColor color);
 void tce_add_supertrend(TceContext* ctx, int period, double multiplier, TceColor color);
 
 /// VWAP — 거래량 가중 평균가. session(일별)으로 자동 reset.
+/// 일별 경계는 host의 local timezone(localtime) 기준 — KST 사용 시 09:00가 아닌 00:00 reset.
+/// 정확한 장 세션 reset이 필요하면 host가 timestamp를 미리 KST 09:00 정렬 후 push 권장.
 void tce_add_vwap(TceContext* ctx, TceColor color);
 
 /// Pivot Points — 일봉 자동 계산. P / R1·R2·R3 / S1·S2·S3 = 7개 가로선.
+/// 일별 경계는 host local timezone 기준. 한국장(09:00 KST 시작)은 host가 timestamp 정렬 후 push.
 /// @param pColor   P(중심)선 색
 /// @param rsColor  R*/S* 6개 선의 공통 색
 void tce_add_pivot_standard(TceContext* ctx, TceColor pColor, TceColor rsColor);

@@ -1,5 +1,6 @@
 #include "data/series.h"
 #include <algorithm>
+#include <cmath>
 #include <limits>
 
 namespace tce {
@@ -9,6 +10,7 @@ void Series::setHistory(const TceCandle* data, size_t count) {
 }
 
 void Series::append(const TceCandle& c) {
+    if (!std::isfinite(c.timestamp)) return; // NaN/Inf 거부
     if (!candles_.empty()) {
         const double last_ts = candles_.back().timestamp;
         if (c.timestamp == last_ts) {

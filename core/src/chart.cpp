@@ -108,8 +108,9 @@ void Chart::clearCrosshair() {
 }
 
 FrameOutput& Chart::buildFrame() {
-    // Heikin-Ashi / Renko는 변환된 시리즈로 그림
-    // 단, 지표는 항상 원본(series_)으로 계산해 사용자가 push한 OHLC 의미를 유지.
+    // Heikin-Ashi: 변환된 시리즈로 그리고 지표는 원본(series_) 기준 — 길이가 같아 인덱스 일치.
+    // Renko: brick 시리즈로 그리고 지표도 brick 기준 — 원본과 길이가 달라 인덱스 매칭이 깨지므로
+    //        drawSeries와 indicatorSeries를 분리하지 않는다. (정책 결정)
     Series tmp;
     const Series* drawSeries = &series_;
     const Series* indicatorSeries = nullptr; // nullptr = drawSeries와 동일
@@ -117,7 +118,7 @@ FrameOutput& Chart::buildFrame() {
         auto hac = toHeikinAshi(series_);
         tmp.setHistory(hac.data(), hac.size());
         drawSeries = &tmp;
-        indicatorSeries = &series_;
+        indicatorSeries = &series_; // HA: 길이 동일 → 지표는 원본 OHLC
     } else if (config_.seriesType == TCE_SERIES_RENKO) {
         double brick = config_.renkoBrickSize;
         if (brick <= 0 && !series_.candles().empty())
@@ -127,7 +128,7 @@ FrameOutput& Chart::buildFrame() {
             if (!rkc.empty()) {
                 tmp.setHistory(rkc.data(), rkc.size());
                 drawSeries = &tmp;
-                indicatorSeries = &series_;
+                indicatorSeries = nullptr; // Renko: brick 기준으로 지표 계산
             }
         }
     }
@@ -295,19 +296,13 @@ int Chart::hitTestDrawing(float screenX, float screenY, float tolPx) const {
 }
 
 void Chart::translateDrawing(int id, float dxPx, float dyPx) {
-    auto& items_ref = const_cast<std::vector<Drawing>&>(drawings_.all());
-    auto it = std::find_if(items_ref.begin(), items_ref.end(),
-        [&](const Drawing& d) { return d.id == id; });
-    if (it == items_ref.end()) return;
-
-    // dxPx, dyPx → 도메인 변화량으로 변환
+    // dxPx, dyPx → 도메인 변화량으로 변환 후 DrawingStore에 위임.
     const auto& cs = series_.candles();
     if (cs.empty()) return;
     const float plotW = lastLayout_.plot.w;
     const float slot = plotW / static_cast<float>(viewport_.visibleCount());
     if (slot <= 0) return;
     double slotsMoved = (double)dxPx / slot;
-    // 평균 캔들 간 timestamp 간격
     double avgDeltaTs = (cs.size() > 1)
         ? (cs.back().timestamp - cs.front().timestamp) / static_cast<double>(cs.size() - 1)
         : 0.0;
@@ -319,10 +314,7 @@ void Chart::translateDrawing(int id, float dxPx, float dyPx) {
     if (bot > top && lastLayout_.priceMax > lastLayout_.priceMin) {
         dprice = -(double)dyPx / (bot - top) * (lastLayout_.priceMax - lastLayout_.priceMin);
     }
-    for (auto& p : it->points) {
-        p.timestamp += dts;
-        p.price     += dprice;
-    }
+    drawings_.translate(id, dts, dprice);
 }
 
 int  Chart::addTradeMarker(double ts, double price, bool isBuy, double qty) {

@@ -205,6 +205,7 @@ typedef struct TceFrame {
 } TceFrame;
 
 /// 한 텍스트 라벨 — 좌표/anchor/문자열만 담음. 폰트는 wrapper(native CoreText/Canvas)가 결정.
+/// text는 raw 숫자/시간 문자열 ("12345.0", "14:25"). 통화 단위/콤마/현지화는 host가 후처리.
 typedef struct TceLabel {
     const char*    text;            ///< null-terminated UTF-8. 엔진 소유.
     float          x;               ///< 화면 px (anchor 적용된 좌표)

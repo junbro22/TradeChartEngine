@@ -31,6 +31,17 @@ bool DrawingStore::replacePoint(int id, size_t idx, double ts, double price) {
     return true;
 }
 
+bool DrawingStore::translate(int id, double dts, double dprice) {
+    auto it = std::find_if(items_.begin(), items_.end(),
+        [&](const Drawing& d) { return d.id == id; });
+    if (it == items_.end()) return false;
+    for (auto& p : it->points) {
+        p.timestamp += dts;
+        p.price     += dprice;
+    }
+    return true;
+}
+
 void DrawingStore::remove(int id) {
     items_.erase(std::remove_if(items_.begin(), items_.end(),
         [&](const Drawing& d) { return d.id == id; }), items_.end());

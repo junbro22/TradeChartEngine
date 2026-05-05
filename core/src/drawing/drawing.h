@@ -23,6 +23,8 @@ public:
     int  add(TceDrawingKind kind, TceColor color);
     bool addPoint(int id, double ts, double price);
     bool replacePoint(int id, size_t idx, double ts, double price);
+    /// id의 모든 점을 (dts, dprice)만큼 평행이동. 없으면 false.
+    bool translate(int id, double dts, double dprice);
     void remove(int id);
     void clear();
 
