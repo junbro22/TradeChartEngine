@@ -157,23 +157,32 @@ private final class MetalRenderer {
 
         for mesh in meshes {
             guard !mesh.vertices.isEmpty, !mesh.indices.isEmpty else { continue }
-            mesh.vertices.withUnsafeBufferPointer { vb in
-                guard let base = vb.baseAddress else { return }
-                let byteLen = vb.count * MemoryLayout<ChartVertex>.stride
-                enc.setVertexBytes(base, length: byteLen, index: 0)
+
+            // setVertexBytes는 4KB 한도라 큰 메시는 MTLBuffer 필수
+            let vLen = mesh.vertices.count * MemoryLayout<ChartVertex>.stride
+            let vBuf: MTLBuffer? = mesh.vertices.withUnsafeBufferPointer { vb in
+                guard let base = vb.baseAddress else { return nil }
+                return device.makeBuffer(bytes: base, length: vLen, options: .storageModeShared)
             }
-            mesh.indices.withUnsafeBufferPointer { ib in
-                guard let base = ib.baseAddress else { return }
-                let byteLen = ib.count * MemoryLayout<UInt32>.stride
-                guard let buf = device.makeBuffer(bytes: base, length: byteLen, options: .storageModeShared) else { return }
-                let prim: MTLPrimitiveType = (mesh.primitive == .lines) ? .line : .triangle
-                enc.setRenderPipelineState(prim == .line ? pipelineLines : pipeline)
-                enc.drawIndexedPrimitives(type: prim,
-                                          indexCount: ib.count,
-                                          indexType: .uint32,
-                                          indexBuffer: buf,
-                                          indexBufferOffset: 0)
+
+            let iLen = mesh.indices.count * MemoryLayout<UInt32>.stride
+            let iBuf: MTLBuffer? = mesh.indices.withUnsafeBufferPointer { ib in
+                guard let base = ib.baseAddress else { return nil }
+                return device.makeBuffer(bytes: base, length: iLen, options: .storageModeShared)
             }
+
+            guard let vBuf, let iBuf else { continue }
+
+            let prim: MTLPrimitiveType = (mesh.primitive == .lines) ? .line : .triangle
+            enc.setRenderPipelineState(prim == .line ? pipelineLines : pipeline)
+            enc.setVertexBuffer(vBuf, offset: 0, index: 0)
+            enc.drawIndexedPrimitives(
+                type: prim,
+                indexCount: mesh.indices.count,
+                indexType: .uint32,
+                indexBuffer: iBuf,
+                indexBufferOffset: 0
+            )
         }
         enc.endEncoding()
         cmd.present(drawable)
