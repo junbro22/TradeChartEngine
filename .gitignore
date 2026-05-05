@@ -1,0 +1,30 @@
+# Build
+build/
+build-*/
+*.xcframework
+DerivedData/
+.build/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# Xcode
+*.xcuserdatad/
+*.xcworkspace/xcuserdata/
+xcuserdata/
+
+# Tuist
+**/Derived/
+*.xcodeproj/
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
