@@ -8,6 +8,7 @@ set(TCE_SOURCES
     src/indicator/rsi.cpp
     src/indicator/macd.cpp
     src/indicator/bollinger.cpp
+    src/indicator/donchian.cpp
     src/indicator/stochastic.cpp
     src/indicator/atr.cpp
     src/indicator/ichimoku.cpp

@@ -1,6 +1,7 @@
 #include "chart.h"
 #include "data/transforms.h"
 #include <algorithm>
+#include <cmath>
 
 namespace tce {
 
@@ -13,20 +14,50 @@ void Chart::setHistory(const TceCandle* data, size_t count) {
 void Chart::appendCandle(const TceCandle& c) {
     const size_t prevSize = series_.size();
     const bool wasAtRightEdge = (viewport_.rightOffset() == 0);
+    const double prevClose = (prevSize > 0)
+        ? series_.candles().back().close
+        : c.close;
     series_.append(c);
     const bool grew = (series_.size() > prevSize);
-    if (!grew) return; // 갱신/거부된 경우는 viewport 손대지 않음
+    const bool updated = (!grew && series_.size() == prevSize && prevSize > 0);
 
-    if (autoScroll_ && wasAtRightEdge) {
-        // 우측 끝을 보던 사용자: 새 캔들이 우측 끝이 되도록 rightOffset 0 유지 (no-op).
-    } else if (!wasAtRightEdge) {
-        // 사용자가 과거를 보고 있었음 — 보고 있던 캔들을 유지하기 위해 한 칸 뒤로.
-        viewport_.setRightOffset(viewport_.rightOffset() + 1);
+    if (grew) {
+        if (autoScroll_ && wasAtRightEdge) {
+            // 우측 끝을 보던 사용자: 새 캔들이 우측 끝이 되도록 rightOffset 0 유지 (no-op).
+        } else if (!wasAtRightEdge) {
+            // 사용자가 과거를 보고 있었음 — 보고 있던 캔들을 유지하기 위해 한 칸 뒤로.
+            viewport_.setRightOffset(viewport_.rightOffset() + 1);
+        }
+        fireAlertCrossings_(prevClose, c.close);
+    } else if (updated) {
+        // 동일 timestamp 갱신 — 새 close로 cross 평가
+        fireAlertCrossings_(prevClose, series_.candles().back().close);
     }
+    // 거부된 경우(작은 timestamp)는 콜백/뷰포트 모두 손대지 않음.
 }
 
 void Chart::updateLast(double close, double volume) {
+    const auto& cs = series_.candles();
+    if (cs.empty()) {
+        series_.updateLast(close, volume);
+        return;
+    }
+    const double prevClose = cs.back().close;
     series_.updateLast(close, volume);
+    fireAlertCrossings_(prevClose, close);
+}
+
+void Chart::fireAlertCrossings_(double prevClose, double newClose) {
+    if (!alertCb_) return;
+    if (prevClose == newClose) return;
+    const double lo = std::min(prevClose, newClose);
+    const double hi = std::max(prevClose, newClose);
+    for (const auto& a : alerts_.all()) {
+        // 한쪽 끝 포함, 다른 쪽 미포함 — 같은 가격에 머물 때 중복 fire 방지.
+        if (a.price > lo && a.price <= hi) {
+            alertCb_(a.id, a.price, alertUser_);
+        }
+    }
 }
 
 void Chart::addOverlay(TceIndicatorKind k, int period, double param,
@@ -181,11 +212,41 @@ double Chart::screenToTimestamp(float screenX) const {
 }
 
 double Chart::screenToPrice(float screenY) const {
-    const float top = lastLayout_.plot.y;
-    const float bot = lastLayout_.plot.y + lastLayout_.plot.h;
-    if (lastLayout_.priceMax == lastLayout_.priceMin) return lastLayout_.priceMin;
-    double t = ((double)bot - (double)screenY) / ((double)bot - (double)top);
-    return lastLayout_.priceMin + t * (lastLayout_.priceMax - lastLayout_.priceMin);
+    return layoutYToPrice(lastLayout_, screenY);
+}
+
+int Chart::screenXToIndex(float screenX) const {
+    const auto& cs = series_.candles();
+    if (cs.empty()) return -1;
+    const float plotW = lastLayout_.plot.w;
+    if (plotW <= 0) return -1;
+    if (screenX < lastLayout_.plot.x ||
+        screenX > lastLayout_.plot.x + plotW) return -1;
+    const float slot = plotW / static_cast<float>(viewport_.visibleCount());
+    if (slot <= 0) return -1;
+    size_t from, to; viewport_.rangeFor(cs.size(), from, to);
+    int rel = static_cast<int>(std::floor((screenX - lastLayout_.plot.x) / slot));
+    int idx = static_cast<int>(from) + rel;
+    if (idx < static_cast<int>(from) || idx >= static_cast<int>(to)) return -1;
+    return idx;
+}
+
+bool Chart::indexToScreenX(int index, float& out_x) const {
+    const auto& cs = series_.candles();
+    if (cs.empty() || index < 0) return false;
+    size_t from, to; viewport_.rangeFor(cs.size(), from, to);
+    if (static_cast<size_t>(index) < from ||
+        static_cast<size_t>(index) >= to) return false;
+    const float plotW = lastLayout_.plot.w;
+    if (plotW <= 0) return false;
+    const float slot = plotW / static_cast<float>(viewport_.visibleCount());
+    out_x = lastLayout_.plot.x +
+            (static_cast<float>(index - static_cast<int>(from)) + 0.5f) * slot;
+    return true;
+}
+
+float Chart::priceToScreenY(double price) const {
+    return layoutPriceToY(lastLayout_, price);
 }
 
 int Chart::beginDrawing(TceDrawingKind kind, float screenX, float screenY, TceColor color) {
@@ -262,13 +323,7 @@ int Chart::hitTestDrawing(float screenX, float screenY, float tolPx) const {
                     x = (idx - (double)from + 0.5) * slot;
                 }
             }
-            const float top = lastLayout_.plot.y;
-            const float bot = lastLayout_.plot.y + lastLayout_.plot.h;
-            if (lastLayout_.priceMax != lastLayout_.priceMin) {
-                double t = (p.price - lastLayout_.priceMin) /
-                           (lastLayout_.priceMax - lastLayout_.priceMin);
-                y = bot - t * (bot - top);
-            }
+            y = layoutPriceToY(lastLayout_, p.price);
             return {x, y};
         };
 
@@ -297,6 +352,8 @@ int Chart::hitTestDrawing(float screenX, float screenY, float tolPx) const {
 
 void Chart::translateDrawing(int id, float dxPx, float dyPx) {
     // dxPx, dyPx → 도메인 변화량으로 변환 후 DrawingStore에 위임.
+    // 가격 변환은 LOG/PERCENT 모드에서 정확히 비선형이라 single-delta로는 근사.
+    // 사용자 드래그 감각상 충분 — 1점 도구는 begin/update가 정확하므로 큰 손실 없음.
     const auto& cs = series_.candles();
     if (cs.empty()) return;
     const float plotW = lastLayout_.plot.w;
@@ -308,11 +365,15 @@ void Chart::translateDrawing(int id, float dxPx, float dyPx) {
         : 0.0;
     double dts = slotsMoved * avgDeltaTs;
 
+    // 화면 중심점 기준으로 dyPx를 가격 차로 환산 — 평균적인 raw price 변환.
     const float top = lastLayout_.plot.y;
     const float bot = lastLayout_.plot.y + lastLayout_.plot.h;
     double dprice = 0.0;
-    if (bot > top && lastLayout_.priceMax > lastLayout_.priceMin) {
-        dprice = -(double)dyPx / (bot - top) * (lastLayout_.priceMax - lastLayout_.priceMin);
+    if (bot > top) {
+        const float midY = (top + bot) * 0.5f;
+        double pHere   = layoutYToPrice(lastLayout_, midY);
+        double pThere  = layoutYToPrice(lastLayout_, midY + dyPx);
+        dprice = pThere - pHere;
     }
     drawings_.translate(id, dts, dprice);
 }
@@ -339,9 +400,7 @@ int  Chart::hitTestAlertLine(float screenY, float tolPx) const {
     const float bot = lastLayout_.plot.y + lastLayout_.plot.h;
     if (bot <= top || lastLayout_.priceMax == lastLayout_.priceMin) return 0;
     for (const auto& a : alerts_.all()) {
-        double t = (a.price - lastLayout_.priceMin) /
-                   (lastLayout_.priceMax - lastLayout_.priceMin);
-        float y = static_cast<float>(bot - t * (bot - top));
+        float y = layoutPriceToY(lastLayout_, a.price);
         float dy = screenY - y;
         float dist = dy * dy;
         if (dist < bestDist) { bestDist = dist; best = a.id; }

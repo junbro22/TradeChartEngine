@@ -19,7 +19,7 @@ void tce_destroy(TceContext* ctx) {
 }
 
 const char* tce_version(void) {
-    return "0.7.0";
+    return "0.8.0";
 }
 
 void tce_set_history(TceContext* ctx, const TceCandle* candles, size_t count) {
@@ -52,6 +52,29 @@ void tce_reset_viewport(TceContext* ctx) {
 
 void tce_fit_all(TceContext* ctx) {
     if (ctx) ctx->chart.fitAll();
+}
+
+int tce_screen_x_to_index(const TceContext* ctx, float screen_x) {
+    if (!ctx) return -1;
+    return ctx->chart.screenXToIndex(screen_x);
+}
+
+int tce_index_to_screen_x(const TceContext* ctx, int index, float* out_x) {
+    if (!ctx || !out_x) return 0;
+    float x = 0;
+    if (!ctx->chart.indexToScreenX(index, x)) return 0;
+    *out_x = x;
+    return 1;
+}
+
+double tce_screen_y_to_price(const TceContext* ctx, float screen_y) {
+    if (!ctx) return 0.0;
+    return ctx->chart.screenToPrice(screen_y);
+}
+
+float tce_price_to_screen_y(const TceContext* ctx, double price) {
+    if (!ctx) return 0.0f;
+    return ctx->chart.priceToScreenY(price);
 }
 
 void tce_set_series_type(TceContext* ctx, TceSeriesType type) {
@@ -132,6 +155,12 @@ void tce_add_bollinger(TceContext* ctx, int period, double stddev, TceColor colo
     if (!ctx) return;
     TceColor edge{color.r, color.g, color.b, 0.5f};
     ctx->chart.addOverlay(TCE_IND_BOLLINGER, period, stddev, color, edge);
+}
+
+void tce_add_donchian(TceContext* ctx, int period, TceColor color, TceColor edgeColor) {
+    if (!ctx) return;
+    ctx->chart.addOverlay(TCE_IND_DONCHIAN, period > 0 ? period : 20, 0.0,
+                          color, edgeColor);
 }
 
 void tce_add_rsi(TceContext* ctx, int period, TceColor color) {
@@ -286,6 +315,11 @@ void tce_clear_alert_lines(TceContext* ctx) {
 
 int tce_hit_test_alert_line(const TceContext* ctx, float y) {
     return ctx ? ctx->chart.hitTestAlertLine(y) : 0;
+}
+
+void tce_set_alert_callback(TceContext* ctx, TceAlertCrossCallback cb, void* user) {
+    if (!ctx) return;
+    ctx->chart.setAlertCallback(reinterpret_cast<tce::Chart::AlertCrossFn>(cb), user);
 }
 
 void tce_set_visible_count(TceContext* ctx, int count) {

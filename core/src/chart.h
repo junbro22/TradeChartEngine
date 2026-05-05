@@ -92,6 +92,12 @@ public:
     // 화면 ↔ 도메인 좌표 변환 (lastLayout 기반 — buildFrame 호출 후만 의미)
     double screenToTimestamp(float screenX) const;
     double screenToPrice(float screenY) const;
+    /// 화면 X → 캔들 인덱스. plot 영역 밖이면 -1.
+    int    screenXToIndex(float screenX) const;
+    /// 캔들 인덱스 → 화면 X 중심. 가시 viewport 밖이면 false 반환 (out_x 비변경).
+    bool   indexToScreenX(int index, float& out_x) const;
+    /// 가격 → 화면 Y. plot 높이 0이면 (top+bot)/2.
+    float  priceToScreenY(double price) const;
 
     // 드로잉 — 사용자가 raw px로 입력. 엔진이 도메인 좌표로 저장.
     int  beginDrawing(TceDrawingKind kind, float screenX, float screenY, TceColor color);
@@ -116,6 +122,11 @@ public:
     void clearAlertLines();
     int  hitTestAlertLine(float screenY, float toleranceePx = 14.0f) const;
 
+    /// 알림선 cross 콜백 — append/updateLast 시 prev_close ↔ new_close 사이에
+    /// alert.price가 있으면 fire. host가 푸시 노티/사운드 트리거.
+    using AlertCrossFn = void(*)(int alert_id, double cross_price, void* user);
+    void setAlertCallback(AlertCrossFn cb, void* user) { alertCb_ = cb; alertUser_ = user; }
+
 private:
     Series                       series_;
     Viewport                     viewport_;
@@ -134,6 +145,10 @@ private:
     AlertLineStore               alerts_;
     MarkerRenderer               markerRenderer_;
     bool                         autoScroll_ = true;
+
+    AlertCrossFn                 alertCb_ = nullptr;
+    void*                        alertUser_ = nullptr;
+    void                         fireAlertCrossings_(double prevClose, double newClose);
 };
 
 } // namespace tce

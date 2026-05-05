@@ -126,7 +126,6 @@ void LabelBuilder::build(const Series& series,
 
     const float plotW = layout.plot.w;
     const float plotH = layout.plot.h;
-    const float totalH = layout.plot.y + plotH + layout.timeAxis.h;
     const float slot = plotW / static_cast<float>(vp.visibleCount());
     // 라벨은 priceAxis 영역 중앙에 정렬
     const float rightAxisX = layout.priceAxis.x + layout.priceAxis.w * 0.5f;
@@ -146,7 +145,12 @@ void LabelBuilder::build(const Series& series,
         if (y < panelTop || y > panelBottom) continue;
         if (cfg.showGrid) emitLine(vGrid, iGrid, 0, y, W, y, gridCol);
         // 라벨: priceAxis 영역 중앙. wrapper는 그대로 .position() 으로 사용.
-        labelOut.add(formatPrice(p),
+        // LOG 모드면 정규화 값(log price)을 raw price로 환산해서 표시.
+        // PERCENT 모드는 정규화 값(% 변화)을 그대로 표시 — 사용자 의도에 부합.
+        double display = (layout.priceMode == TCE_PRICE_LOG)
+            ? layoutDenormalizePrice(layout, p)
+            : p;
+        labelOut.add(formatPrice(display),
                      rightAxisX, y,
                      TCE_ANCHOR_CENTER_CENTER,
                      TCE_LABEL_PRICE_AXIS,
@@ -173,7 +177,8 @@ void LabelBuilder::build(const Series& series,
     // ===== 마지막 가격선 + 우측 라벨 =====
     if (!cs.empty()) {
         const auto& last = cs.back();
-        float y = yFor(last.close);
+        // raw price → Y. LOG/PERCENT 모드 자동 변환.
+        float y = layoutPriceToY(layout, last.close);
         if (y >= panelTop && y <= panelBottom) {
             std::vector<TceVertex> vLast; std::vector<uint32_t> iLast;
             const TceColor lastCol{1.0f, 0.85f, 0.20f, 0.85f};
@@ -193,9 +198,8 @@ void LabelBuilder::build(const Series& series,
     // ===== 크로스헤어 라벨 =====
     if (cross.visible && cross.candleIndex >= 0
         && static_cast<size_t>(cross.candleIndex) < cs.size()) {
-        // 가격 라벨: 크로스헤어 Y에 해당하는 가격 (yFor 역함수)
-        float t = (panelBottom - cross.y) / std::max(1e-3f, panelBottom - panelTop);
-        double price = minP + t * (maxP - minP);
+        // 가격 라벨: 크로스헤어 Y에 해당하는 raw price (LOG/PERCENT 역변환 포함)
+        double price = layoutYToPrice(layout, cross.y);
         if (cross.y >= panelTop && cross.y <= panelBottom) {
             const TceColor crossLabelBg{0.13f, 0.16f, 0.20f, 0.95f};
             const TceColor crossLabelTxt{1.0f, 1.0f, 1.0f, 1.0f};

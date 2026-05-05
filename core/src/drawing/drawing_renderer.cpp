@@ -42,11 +42,7 @@ float xForTimestamp(const Series& series, const Viewport& vp,
 }
 
 float yForPrice(const PanelLayout& layout, double price) {
-    const float top = layout.plot.y;
-    const float bot = layout.plot.y + layout.plot.h;
-    if (layout.priceMax == layout.priceMin) return (top + bot) * 0.5f;
-    double t = (price - layout.priceMin) / (layout.priceMax - layout.priceMin);
-    return static_cast<float>(bot - t * (bot - top));
+    return layoutPriceToY(layout, price);
 }
 
 void emitLine(std::vector<TceVertex>& v, std::vector<uint32_t>& idx,

@@ -6,6 +6,7 @@
 #include "indicator/rsi.h"
 #include "indicator/macd.h"
 #include "indicator/bollinger.h"
+#include "indicator/donchian.h"
 #include "indicator/stochastic.h"
 #include "indicator/atr.h"
 #include "indicator/ichimoku.h"
@@ -320,13 +321,19 @@ void FrameBuilder::build(const Series& series,
         priceY.maxP = priceY.normalize(rawMax);
         if (priceY.minP > priceY.maxP) std::swap(priceY.minP, priceY.maxP);
     }
-    // BB가 메인보다 위/아래로 나갈 수 있어 그것까지 포함 (indicator series 기준)
+    // BB/Donchian이 메인보다 위/아래로 나갈 수 있어 그것까지 포함 (indicator series 기준)
     for (const auto& ov : overlays) {
         if (ov.kind == TCE_IND_BOLLINGER) {
             auto bb = bollinger(iSeries, ov.period, ov.param);
             for (size_t i = from; i < to && i < bb.upper.size(); ++i) {
                 if (bb.upper[i]) priceY.maxP = std::max(priceY.maxP, priceY.normalize(*bb.upper[i]));
                 if (bb.lower[i]) priceY.minP = std::min(priceY.minP, priceY.normalize(*bb.lower[i]));
+            }
+        } else if (ov.kind == TCE_IND_DONCHIAN) {
+            auto dc = donchian(iSeries, ov.period > 0 ? ov.period : 20);
+            for (size_t i = from; i < to && i < dc.upper.size(); ++i) {
+                if (dc.upper[i]) priceY.maxP = std::max(priceY.maxP, priceY.normalize(*dc.upper[i]));
+                if (dc.lower[i]) priceY.minP = std::min(priceY.minP, priceY.normalize(*dc.lower[i]));
             }
         }
     }
@@ -341,6 +348,8 @@ void FrameBuilder::build(const Series& series,
     layout.timeAxis   = Rect{0, plotH, plotW, TIME_AXIS_H};
     layout.priceMin   = priceY.minP;
     layout.priceMax   = priceY.maxP;
+    layout.priceMode  = priceY.mode;
+    layout.percentBase = priceY.percentBase;
     layout.subpanels.clear();
 
     std::vector<TceVertex> vTri, vLine;
@@ -429,6 +438,14 @@ void FrameBuilder::build(const Series& series,
             emitPolyline(vLine, iLine, bb.middle, from, to, slot, priceY, ov.color);
             emitPolyline(vLine, iLine, bb.upper,  from, to, slot, priceY, ov.color2);
             emitPolyline(vLine, iLine, bb.lower,  from, to, slot, priceY, ov.color2);
+            break;
+        }
+        case TCE_IND_DONCHIAN: {
+            auto dc = donchian(iSeries, ov.period > 0 ? ov.period : 20);
+            // upper/lower는 ov.color2 (옅게), middle은 ov.color
+            emitPolyline(vLine, iLine, dc.middle, from, to, slot, priceY, ov.color);
+            emitPolyline(vLine, iLine, dc.upper,  from, to, slot, priceY, ov.color2);
+            emitPolyline(vLine, iLine, dc.lower,  from, to, slot, priceY, ov.color2);
             break;
         }
         case TCE_IND_ICHIMOKU: {

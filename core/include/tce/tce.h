@@ -133,6 +133,12 @@ void tce_clear_indicators(TceContext* ctx);
 /// 일반적인 값: period=20, stddev=2.0.
 void tce_add_bollinger(TceContext* ctx, int period, double stddev, TceColor color);
 
+/// Donchian Channels — period 캔들의 high.max(상단)/low.min(하단)/중앙선.
+/// 표준값 period=20. 터틀 트레이딩에서 자주 쓰임.
+/// @param color      중앙선(중간) 색
+/// @param edgeColor  상/하단 채널 색 (보통 alpha 낮춰 옅게)
+void tce_add_donchian(TceContext* ctx, int period, TceColor color, TceColor edgeColor);
+
 /// 일목균형표 — 전환선/기준선/선행스팬A·B/후행스팬 + 구름.
 /// 표준값: tenkan=9, kijun=26, senkouB=52, displacement=26.
 /// 선행스팬/후행스팬 색은 엔진 기본값(반투명)을 사용 — wrapper에서 주관 색 설정 불필요.
@@ -221,6 +227,22 @@ void tce_zoom(TceContext* ctx, float factor, float anchor_x)
 void tce_reset_viewport(TceContext* ctx);
 /// 모든 캔들이 한 화면에 들어가도록 visibleCount = candle_count, rightOffset = 0.
 void tce_fit_all(TceContext* ctx);
+
+/* ============================================================
+ * 좌표 변환 (host 커스텀 overlay/annotation)
+ *
+ * 모두 마지막 build_frame 결과(lastLayout) 기준 — build_frame 호출 후에만 의미 있음.
+ * pan/zoom으로 viewport 변경 시 다음 build_frame 후 결과가 갱신된다.
+ * ============================================================ */
+
+/// 화면 X(px) → 캔들 인덱스. plot 영역 밖이거나 캔들 없음이면 -1.
+int    tce_screen_x_to_index(const TceContext* ctx, float screen_x);
+/// 캔들 인덱스 → 화면 X(px) 중심. 가시 범위 밖이면 0 반환(out_x 비변경), 성공 시 1.
+int    tce_index_to_screen_x(const TceContext* ctx, int index, float* out_x);
+/// 화면 Y(px) → raw price. PRICE_LOG/PERCENT 모드에서 자동 역변환.
+double tce_screen_y_to_price(const TceContext* ctx, float screen_y);
+/// raw price → 화면 Y(px). PRICE_LOG/PERCENT 모드에서 자동 변환.
+float  tce_price_to_screen_y(const TceContext* ctx, double price);
 
 /* ============================================================
  * 크로스헤어 (마우스 hover / 터치 & 홀드)
@@ -339,6 +361,18 @@ void tce_clear_alert_lines(TceContext* ctx);
 
 /// 화면 Y 픽셀에 가장 가까운 알림선 id (거리 임계 초과면 0). drag 시작점 검출용.
 int  tce_hit_test_alert_line(const TceContext* ctx, float screen_y);
+
+/// 알림선 cross 콜백 시그니처. append_candle/update_last 호출 시 prev_close 와 new_close
+/// 사이를 가로지르는 알림선이 있으면 한 번 호출된다.
+/// @param alert_id    이벤트가 발생한 알림선의 id (>0)
+/// @param cross_price 알림선의 가격 (alert_id가 등록될 때의 price)
+/// @param user        등록 시 넘긴 user 포인터 (host 컨텍스트 전달용)
+typedef void (*TceAlertCrossCallback)(int alert_id, double cross_price, void* user);
+
+/// 알림선 cross 콜백 등록. 같은 ctx에 다시 호출하면 이전 콜백을 대체.
+/// cb=NULL을 넘기면 콜백 해제.
+/// @note 콜백은 append_candle/update_last를 호출한 스레드(=main)에서 호출됨.
+void tce_set_alert_callback(TceContext* ctx, TceAlertCrossCallback cb, void* user);
 
 #ifdef __cplusplus
 }
