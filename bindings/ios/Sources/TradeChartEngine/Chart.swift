@@ -79,11 +79,11 @@ public final class Chart {
 
     public init() {
         guard let p = tce_create() else { fatalError("tce_create failed") }
-        self.ctx = OpaquePointer(p)
+        self.ctx = p
     }
 
     deinit {
-        tce_destroy(.init(ctx))
+        tce_destroy(ctx)
     }
 
     public static var version: String {
@@ -95,46 +95,46 @@ public final class Chart {
     public func setHistory(_ candles: [Candle]) {
         let raw = candles.map(\.c)
         raw.withUnsafeBufferPointer {
-            tce_set_history(.init(ctx), $0.baseAddress, $0.count)
+            tce_set_history(ctx, $0.baseAddress, $0.count)
         }
     }
 
     public func appendCandle(_ candle: Candle) {
         var c = candle.c
-        tce_append_candle(.init(ctx), &c)
+        tce_append_candle(ctx, &c)
     }
 
     public func updateLast(close: Double, volume: Double) {
-        tce_update_last(.init(ctx), close, volume)
+        tce_update_last(ctx, close, volume)
     }
 
     public var candleCount: Int {
-        tce_candle_count(.init(ctx))
+        tce_candle_count(ctx)
     }
 
     // MARK: 설정
 
     public func setSize(width: CGFloat, height: CGFloat) {
-        tce_set_size(.init(ctx), Float(width), Float(height))
+        tce_set_size(ctx, Float(width), Float(height))
     }
 
     public func setSeriesType(_ type: SeriesType) {
-        tce_set_series_type(.init(ctx), TceSeriesType(rawValue: UInt32(type.rawValue)))
+        tce_set_series_type(ctx, TceSeriesType(rawValue: UInt32(type.rawValue)))
     }
 
     public func setColorScheme(_ scheme: ColorScheme) {
-        tce_set_color_scheme(.init(ctx), TceColorScheme(rawValue: UInt32(scheme.rawValue)))
+        tce_set_color_scheme(ctx, TceColorScheme(rawValue: UInt32(scheme.rawValue)))
     }
 
     public func setVolumePanelVisible(_ visible: Bool) {
-        tce_set_volume_panel_visible(.init(ctx), visible ? 1 : 0)
+        tce_set_volume_panel_visible(ctx, visible ? 1 : 0)
     }
 
     // MARK: 지표
 
     public func addIndicator(_ kind: IndicatorKind, period: Int, color: ChartColor) {
         tce_add_indicator(
-            .init(ctx),
+            ctx,
             TceIndicatorKind(rawValue: UInt32(kind.rawValue)),
             Int32(period),
             color.c
@@ -143,44 +143,44 @@ public final class Chart {
 
     public func removeIndicator(_ kind: IndicatorKind, period: Int) {
         tce_remove_indicator(
-            .init(ctx),
+            ctx,
             TceIndicatorKind(rawValue: UInt32(kind.rawValue)),
             Int32(period)
         )
     }
 
     public func clearIndicators() {
-        tce_clear_indicators(.init(ctx))
+        tce_clear_indicators(ctx)
     }
 
     // MARK: 뷰포트
 
     public var visibleCount: Int {
-        get { Int(tce_visible_count(.init(ctx))) }
-        set { tce_set_visible_count(.init(ctx), Int32(newValue)) }
+        get { Int(tce_visible_count(ctx)) }
+        set { tce_set_visible_count(ctx, Int32(newValue)) }
     }
 
     public var rightOffset: Int {
-        get { Int(tce_right_offset(.init(ctx))) }
-        set { tce_set_right_offset(.init(ctx), Int32(newValue)) }
+        get { Int(tce_right_offset(ctx)) }
+        set { tce_set_right_offset(ctx, Int32(newValue)) }
     }
 
     public func pan(deltaPixels: CGFloat) {
-        tce_pan(.init(ctx), Float(deltaPixels))
+        tce_pan(ctx, Float(deltaPixels))
     }
 
     public func zoom(factor: CGFloat, anchorX: CGFloat) {
-        tce_zoom(.init(ctx), Float(factor), Float(anchorX))
+        tce_zoom(ctx, Float(factor), Float(anchorX))
     }
 
     // MARK: 크로스헤어
 
     public func setCrosshair(x: CGFloat, y: CGFloat) {
-        tce_set_crosshair(.init(ctx), Float(x), Float(y))
+        tce_set_crosshair(ctx, Float(x), Float(y))
     }
 
     public func clearCrosshair() {
-        tce_clear_crosshair(.init(ctx))
+        tce_clear_crosshair(ctx)
     }
 
     public struct CrosshairInfo: Sendable {
@@ -193,7 +193,7 @@ public final class Chart {
     }
 
     public var crosshair: CrosshairInfo {
-        let info = tce_crosshair_info(.init(ctx))
+        let info = tce_crosshair_info(ctx)
         return CrosshairInfo(
             visible: info.visible != 0,
             candleIndex: Int(info.candle_index),
@@ -209,7 +209,7 @@ public final class Chart {
     /// 현재 상태로 한 프레임의 메시 묶음을 빌드.
     /// 반환된 Mesh는 Swift가 소유 (Vertex/Index는 복사됨).
     public func buildFrame() -> [Mesh] {
-        let frame = tce_build_frame(.init(ctx))
+        let frame = tce_build_frame(ctx)
         var result: [Mesh] = []
         result.reserveCapacity(frame.mesh_count)
         for i in 0..<frame.mesh_count {
