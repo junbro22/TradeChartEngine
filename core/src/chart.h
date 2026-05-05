@@ -27,6 +27,9 @@ public:
     void setColorScheme(TceColorScheme s)     { config_.scheme = s; }
     void setVolumeVisible(bool v)             { config_.volumeVisible = v; }
     void setSize(float w, float h)            { viewport_.setSize(w, h); }
+    void setPriceAxisMode(TcePriceAxisMode m) { config_.priceMode = m; }
+    void setRenkoBrickSize(double v)          { config_.renkoBrickSize = v; }
+    void setShowGrid(bool v)                  { config_.showGrid = v; }
 
     // overlay 지표 (메인 패널)
     void addOverlay(TceIndicatorKind k, int period, double param,

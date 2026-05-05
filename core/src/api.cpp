@@ -57,6 +57,18 @@ void tce_set_volume_panel_visible(TceContext* ctx, int visible) {
     if (ctx) ctx->chart.setVolumeVisible(visible != 0);
 }
 
+void tce_set_price_axis_mode(TceContext* ctx, TcePriceAxisMode mode) {
+    if (ctx) ctx->chart.setPriceAxisMode(mode);
+}
+
+void tce_set_renko_brick_size(TceContext* ctx, double size) {
+    if (ctx) ctx->chart.setRenkoBrickSize(size);
+}
+
+void tce_set_show_grid(TceContext* ctx, int show) {
+    if (ctx) ctx->chart.setShowGrid(show != 0);
+}
+
 void tce_add_indicator(TceContext* ctx, TceIndicatorKind kind, int period, TceColor color) {
     if (!ctx) return;
     if (kind == TCE_IND_SMA || kind == TCE_IND_EMA) {

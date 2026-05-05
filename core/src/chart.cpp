@@ -1,4 +1,5 @@
 #include "chart.h"
+#include "data/transforms.h"
 #include <algorithm>
 
 namespace tce {
@@ -78,7 +79,26 @@ void Chart::clearCrosshair() {
 }
 
 FrameOutput& Chart::buildFrame() {
-    builder_.build(series_, viewport_, config_, overlays_, subpanels_, crosshair_, output_, lastLayout_);
+    // Heikin-Ashi / Renko는 변환된 시리즈로 그림
+    Series tmp;
+    const Series* drawSeries = &series_;
+    if (config_.seriesType == TCE_SERIES_HEIKIN_ASHI) {
+        auto hac = toHeikinAshi(series_);
+        tmp.setHistory(hac.data(), hac.size());
+        drawSeries = &tmp;
+    } else if (config_.seriesType == TCE_SERIES_RENKO) {
+        double brick = config_.renkoBrickSize;
+        if (brick <= 0 && !series_.candles().empty())
+            brick = series_.candles().back().close * 0.005;
+        if (brick > 0) {
+            auto rkc = toRenko(series_, brick);
+            if (!rkc.empty()) {
+                tmp.setHistory(rkc.data(), rkc.size());
+                drawSeries = &tmp;
+            }
+        }
+    }
+    builder_.build(*drawSeries, viewport_, config_, overlays_, subpanels_, crosshair_, output_, lastLayout_);
     return output_;
 }
 
