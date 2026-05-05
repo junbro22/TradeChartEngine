@@ -163,6 +163,29 @@ void tce_drawing_update(TceContext* ctx, int id, int point_idx,
 void tce_drawing_remove(TceContext* ctx, int id);
 void tce_drawing_clear(TceContext* ctx);
 
+// 화면 px에서 가장 가까운 드로잉 id (없으면 0). 사용자 tap에서 활용.
+int  tce_drawing_hit_test(const TceContext* ctx, float screen_x, float screen_y);
+// 드로잉 통째 이동
+void tce_drawing_translate(TceContext* ctx, int id, float dx_px, float dy_px);
+
+// =====================
+// 매수/매도 마커
+// =====================
+int  tce_add_trade_marker(TceContext* ctx, double timestamp, double price,
+                          int is_buy, double quantity);
+void tce_remove_trade_marker(TceContext* ctx, int id);
+void tce_clear_trade_markers(TceContext* ctx);
+
+// =====================
+// 가격 알림선 (드래그 가능)
+// =====================
+int  tce_add_alert_line(TceContext* ctx, double price, TceColor color);
+void tce_update_alert_line_by_screen(TceContext* ctx, int id, float screen_y);
+void tce_remove_alert_line(TceContext* ctx, int id);
+void tce_clear_alert_lines(TceContext* ctx);
+// 화면 px 위치에서 가장 가까운 알림선 id (없으면 0)
+int  tce_hit_test_alert_line(const TceContext* ctx, float screen_y);
+
 #ifdef __cplusplus
 }
 #endif

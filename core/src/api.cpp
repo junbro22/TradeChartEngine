@@ -188,6 +188,46 @@ void tce_drawing_clear(TceContext* ctx) {
     if (ctx) ctx->chart.clearDrawings();
 }
 
+int tce_drawing_hit_test(const TceContext* ctx, float x, float y) {
+    return ctx ? ctx->chart.hitTestDrawing(x, y) : 0;
+}
+
+void tce_drawing_translate(TceContext* ctx, int id, float dx, float dy) {
+    if (ctx) ctx->chart.translateDrawing(id, dx, dy);
+}
+
+int tce_add_trade_marker(TceContext* ctx, double ts, double price, int isBuy, double qty) {
+    return ctx ? ctx->chart.addTradeMarker(ts, price, isBuy != 0, qty) : 0;
+}
+
+void tce_remove_trade_marker(TceContext* ctx, int id) {
+    if (ctx) ctx->chart.removeTradeMarker(id);
+}
+
+void tce_clear_trade_markers(TceContext* ctx) {
+    if (ctx) ctx->chart.clearTradeMarkers();
+}
+
+int tce_add_alert_line(TceContext* ctx, double price, TceColor color) {
+    return ctx ? ctx->chart.addAlertLine(price, color) : 0;
+}
+
+void tce_update_alert_line_by_screen(TceContext* ctx, int id, float y) {
+    if (ctx) ctx->chart.updateAlertLineByScreen(id, y);
+}
+
+void tce_remove_alert_line(TceContext* ctx, int id) {
+    if (ctx) ctx->chart.removeAlertLine(id);
+}
+
+void tce_clear_alert_lines(TceContext* ctx) {
+    if (ctx) ctx->chart.clearAlertLines();
+}
+
+int tce_hit_test_alert_line(const TceContext* ctx, float y) {
+    return ctx ? ctx->chart.hitTestAlertLine(y) : 0;
+}
+
 void tce_set_visible_count(TceContext* ctx, int count) {
     if (ctx) ctx->chart.viewport().setVisibleCount(count);
 }
