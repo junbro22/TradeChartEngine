@@ -106,6 +106,17 @@ void     tce_release_frame(TceFrame frame);
 // 메모리는 ctx 내부 소유.
 TceLabels tce_build_labels(TceContext* ctx);
 
+// 마지막 build_frame의 레이아웃 정보 — wrapper가 텍스트 영역/패널 영역을 그대로 사용
+TceLayout tce_layout(const TceContext* ctx);
+
+// =====================
+// 인터랙션 — wrapper는 raw pixel 좌표만 dispatch
+// =====================
+// pinch: scale은 누적 아닌 마지막 변화 (≈1.0 기준), anchor는 화면 X 픽셀
+void tce_apply_pinch(TceContext* ctx, float scale, float anchor_px);
+// pan: 양수 dx = 손가락이 우측으로 이동(과거 캔들 보임)
+void tce_apply_pan(TceContext* ctx, float dx_px);
+
 #ifdef __cplusplus
 }
 #endif

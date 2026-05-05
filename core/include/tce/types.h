@@ -36,13 +36,25 @@ typedef enum TceIndicatorKind {
     // Overlay (메인 패널)
     TCE_IND_SMA               = 0,
     TCE_IND_EMA               = 1,
-    TCE_IND_BOLLINGER         = 2,   // period + stddev (default 2.0)
+    TCE_IND_BOLLINGER         = 2,   // period + stddev
+    TCE_IND_ICHIMOKU          = 3,   // tenkan/kijun/senkouB periods
+    TCE_IND_PSAR              = 4,   // step + max
+    TCE_IND_SUPERTREND        = 5,   // period + multiplier
+    TCE_IND_VWAP              = 6,   // session 자동
+    TCE_IND_PIVOT_STANDARD    = 7,   // 일봉 기반 자동 — 별도 파라미터 없음
+    TCE_IND_PIVOT_FIBONACCI   = 8,
+    TCE_IND_PIVOT_CAMARILLA   = 9,
 
     // Subpanel
-    TCE_IND_RSI               = 100, // period
-    TCE_IND_MACD              = 101, // fast, slow, signal
-    TCE_IND_STOCHASTIC        = 102, // k_period, d_period, smooth
-    TCE_IND_ATR               = 103, // period
+    TCE_IND_RSI               = 100,
+    TCE_IND_MACD              = 101,
+    TCE_IND_STOCHASTIC        = 102,
+    TCE_IND_ATR               = 103,
+    TCE_IND_DMI_ADX           = 104, // period
+    TCE_IND_CCI               = 105, // period
+    TCE_IND_WILLIAMS_R        = 106, // period
+    TCE_IND_OBV               = 107,
+    TCE_IND_MFI               = 108, // period
 } TceIndicatorKind;
 
 // RGBA 0..1
@@ -119,6 +131,24 @@ typedef struct TceLabels {
     const TceLabel* items;
     size_t          count;
 } TceLabels;
+
+// 화면 픽셀 단위 사각형
+typedef struct TceRect {
+    float x;
+    float y;
+    float width;
+    float height;
+} TceRect;
+
+// 한 프레임의 레이아웃 정보 — 텍스트/오버레이 영역 결정에 사용
+typedef struct TceLayout {
+    TceRect plot;            // 메인 가격 패널 (캔들이 그려지는 영역)
+    TceRect priceAxis;       // 우측 가격 축 (라벨 영역)
+    TceRect timeAxis;        // 하단 시간 축
+    TceRect volumePanel;     // 거래량 패널 (없으면 width=0)
+    int     subpanelCount;
+    TceRect subpanels[8];    // 보조 패널들 (최대 8개)
+} TceLayout;
 
 #ifdef __cplusplus
 }
