@@ -5,6 +5,8 @@
 #include "viewport/viewport.h"
 #include "renderer/frame_builder.h"
 #include "renderer/label_builder.h"
+#include "drawing/drawing.h"
+#include "drawing/drawing_renderer.h"
 #include <vector>
 
 namespace tce {
@@ -63,6 +65,17 @@ public:
     void applyPinch(float scale, float anchorPx);
     void applyPan(float dxPx);
 
+    // 화면 ↔ 도메인 좌표 변환 (lastLayout 기반 — buildFrame 호출 후만 의미)
+    double screenToTimestamp(float screenX) const;
+    double screenToPrice(float screenY) const;
+
+    // 드로잉 — 사용자가 raw px로 입력. 엔진이 도메인 좌표로 저장.
+    int  beginDrawing(TceDrawingKind kind, float screenX, float screenY, TceColor color);
+    void updateDrawing(int id, size_t pointIdx, float screenX, float screenY);
+    void removeDrawing(int id);
+    void clearDrawings();
+    const std::vector<Drawing>& drawings() const { return drawings_.all(); }
+
 private:
     Series                       series_;
     Viewport                     viewport_;
@@ -75,6 +88,8 @@ private:
     LabelOutput                  labelOutput_;
     LabelBuilder                 labelBuilder_;
     PanelLayout                  lastLayout_;
+    DrawingStore                 drawings_;
+    DrawingRenderer              drawingRenderer_;
     bool                         autoScroll_ = true;
 };
 

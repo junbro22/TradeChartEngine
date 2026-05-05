@@ -148,6 +148,21 @@ void tce_apply_pinch(TceContext* ctx, float scale, float anchor_px);
 // pan: 양수 dx = 손가락이 우측으로 이동(과거 캔들 보임)
 void tce_apply_pan(TceContext* ctx, float dx_px);
 
+// =====================
+// 드로잉 도구
+// =====================
+// 새 드로잉 시작 — screenX/Y는 첫 점. 2점 도구는 두 번째 점도 같은 위치에 자동 추가.
+// 반환: drawing id (>0 정상). wrapper는 drag 중 update_drawing(id, 1, x, y)로 두 번째 점 갱신.
+int  tce_drawing_begin(TceContext* ctx, TceDrawingKind kind,
+                       float screen_x, float screen_y, TceColor color);
+
+// 특정 점 갱신 (point_idx: 0=첫 점, 1=두 번째 점)
+void tce_drawing_update(TceContext* ctx, int id, int point_idx,
+                        float screen_x, float screen_y);
+
+void tce_drawing_remove(TceContext* ctx, int id);
+void tce_drawing_clear(TceContext* ctx);
+
 #ifdef __cplusplus
 }
 #endif

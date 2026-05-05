@@ -169,6 +169,25 @@ void tce_add_pivot_camarilla(TceContext* ctx, TceColor pColor, TceColor rsColor)
     ctx->chart.addOverlay(TCE_IND_PIVOT_CAMARILLA, 0, 0.0, pColor, rsColor);
 }
 
+int tce_drawing_begin(TceContext* ctx, TceDrawingKind kind,
+                      float x, float y, TceColor color) {
+    if (!ctx) return 0;
+    return ctx->chart.beginDrawing(kind, x, y, color);
+}
+
+void tce_drawing_update(TceContext* ctx, int id, int point_idx, float x, float y) {
+    if (!ctx) return;
+    ctx->chart.updateDrawing(id, static_cast<size_t>(std::max(0, point_idx)), x, y);
+}
+
+void tce_drawing_remove(TceContext* ctx, int id) {
+    if (ctx) ctx->chart.removeDrawing(id);
+}
+
+void tce_drawing_clear(TceContext* ctx) {
+    if (ctx) ctx->chart.clearDrawings();
+}
+
 void tce_set_visible_count(TceContext* ctx, int count) {
     if (ctx) ctx->chart.viewport().setVisibleCount(count);
 }
