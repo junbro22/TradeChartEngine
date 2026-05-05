@@ -32,11 +32,12 @@ struct ContentView: View {
     @State private var showMFI        = false
     @State private var showPivot      = false
     @State private var seriesType: SeriesType = .candle
+    @State private var drawingMode: DrawingKind? = nil
 
     var body: some View {
         VStack(spacing: 0) {
             header
-            TradeChartView(chart: chart)
+            TradeChartView(chart: chart, drawingMode: $drawingMode)
                 .background(Color(red: 0.04, green: 0.05, blue: 0.07))
             controls
         }
@@ -156,11 +157,39 @@ struct ContentView: View {
                     }
                 }
             }
+
+            // 드로잉 도구 툴바
+            HStack(spacing: 6) {
+                drawingChip("✕",  active: drawingMode == nil)        { drawingMode = nil }
+                drawingChip("―",  active: drawingMode == .horizontal){ drawingMode = .horizontal }
+                drawingChip("│",  active: drawingMode == .vertical)  { drawingMode = .vertical }
+                drawingChip("╱",  active: drawingMode == .trendline) { drawingMode = .trendline }
+                drawingChip("▭",  active: drawingMode == .rectangle) { drawingMode = .rectangle }
+                drawingChip("Fib", active: drawingMode == .fibRetracement) { drawingMode = .fibRetracement }
+                drawingChip("📏", active: drawingMode == .measure)   { drawingMode = .measure }
+                Spacer()
+                Button("Clear") {
+                    chart.clearDrawings()
+                }
+                .font(.caption.monospaced())
+                .foregroundStyle(.red)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(Color(red: 0.08, green: 0.10, blue: 0.13))
         .foregroundStyle(.white)
+    }
+
+    private func drawingChip(_ label: String, active: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.caption.monospaced())
+                .foregroundStyle(active ? .black : .white)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+                .background(active ? Color.cyan.opacity(0.85) : Color.white.opacity(0.10), in: Capsule())
+        }
     }
 
     private func indicatorChip(_ label: String,
