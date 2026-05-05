@@ -21,6 +21,19 @@ public:
     void appendCandle(const TceCandle& c);
     void updateLast(double close, double volume);
     size_t candleCount() const { return series_.size(); }
+    bool   getCandle(size_t index, TceCandle& out) const {
+        const auto& cs = series_.candles();
+        if (index >= cs.size()) return false;
+        out = cs[index]; return true;
+    }
+
+    // viewport 헬퍼
+    void resetViewport()  { viewport_.setRightOffset(0); }
+    void fitAll() {
+        const size_t n = series_.size();
+        if (n > 0) viewport_.setVisibleCount(static_cast<int>(n));
+        viewport_.setRightOffset(0);
+    }
 
     // config
     void setSeriesType(TceSeriesType t)       { config_.seriesType = t; }
@@ -34,6 +47,11 @@ public:
     // overlay 지표 (메인 패널)
     void addOverlay(TceIndicatorKind k, int period, double param,
                     TceColor color, TceColor color2 = {1, 1, 1, 0.5});
+    // 다중 파라미터 overlay (Ichimoku 4 ints, PSAR step+maxStep, SuperTrend period+multiplier)
+    void addOverlayEx(TceIndicatorKind k,
+                      int period, int p2, int p3, int p4,
+                      double param, double param2,
+                      TceColor color, TceColor color2 = {1, 1, 1, 0.5});
     void removeOverlay(TceIndicatorKind k, int period);
     void clearOverlays();
 
@@ -42,7 +60,9 @@ public:
                      TceColor color1,
                      TceColor color2 = {1, 1, 1, 0.6},
                      TceColor color3 = {0.5f, 0.5f, 0.5f, 0.4f});
-    void removeSubpanel(TceIndicatorKind k);
+    /// kind 일치 + (period<=0 무관 OR p1==period 일치)인 첫 spec 1개 제거.
+    /// period<=0이면 같은 kind의 모든 spec 제거.
+    void removeSubpanel(TceIndicatorKind k, int period = 0);
     void clearSubpanels();
 
     void clearAllIndicators() { clearOverlays(); clearSubpanels(); }

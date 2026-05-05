@@ -130,7 +130,7 @@ TceColor candleColor(bool isUp, TceColorScheme scheme) {
                 : TceColor{0.93f, 0.27f, 0.27f, 1.0f};
 }
 
-// 보조 패널 한 개에 대한 스켈레톤
+// 보조 패널 한 개에 대한 스켈레톤 — `series`는 indicator 계산에 쓰이는 시리즈(원본).
 void buildSubpanel(std::vector<TceVertex>& vTri, std::vector<uint32_t>& iTri,
                    std::vector<TceVertex>& vLine, std::vector<uint32_t>& iLine,
                    const Series& series,
@@ -263,12 +263,16 @@ void FrameBuilder::build(const Series& series,
                          const std::vector<SubpanelSpec>& subpanels,
                          const CrosshairState& cross,
                          FrameOutput& out,
-                         PanelLayout& layout) {
+                         PanelLayout& layout,
+                         const Series* indicatorSeries) {
     out.clear();
     layout = PanelLayout{};
 
     const auto& cs = series.candles();
     if (cs.empty()) return;
+    // 지표 계산용 시리즈 (HA 모드에선 원본 series_가 넘어옴).
+    // 별도 지정 없으면 draw series와 동일하게 처리.
+    const Series& iSeries = indicatorSeries ? *indicatorSeries : series;
 
     size_t from, to;
     vp.rangeFor(cs.size(), from, to);
@@ -316,11 +320,11 @@ void FrameBuilder::build(const Series& series,
         priceY.maxP = priceY.normalize(rawMax);
         if (priceY.minP > priceY.maxP) std::swap(priceY.minP, priceY.maxP);
     }
-    // BB가 메인보다 위/아래로 나갈 수 있어 그것까지 포함
+    // BB가 메인보다 위/아래로 나갈 수 있어 그것까지 포함 (indicator series 기준)
     for (const auto& ov : overlays) {
         if (ov.kind == TCE_IND_BOLLINGER) {
-            auto bb = bollinger(series, ov.period, ov.param);
-            for (size_t i = from; i < to; ++i) {
+            auto bb = bollinger(iSeries, ov.period, ov.param);
+            for (size_t i = from; i < to && i < bb.upper.size(); ++i) {
                 if (bb.upper[i]) priceY.maxP = std::max(priceY.maxP, priceY.normalize(*bb.upper[i]));
                 if (bb.lower[i]) priceY.minP = std::min(priceY.minP, priceY.normalize(*bb.lower[i]));
             }
@@ -415,25 +419,27 @@ void FrameBuilder::build(const Series& series,
     for (const auto& ov : overlays) {
         switch (ov.kind) {
         case TCE_IND_SMA:
-            emitPolyline(vLine, iLine, sma(series, ov.period), from, to, slot, priceY, ov.color);
+            emitPolyline(vLine, iLine, sma(iSeries, ov.period), from, to, slot, priceY, ov.color);
             break;
         case TCE_IND_EMA:
-            emitPolyline(vLine, iLine, ema(series, ov.period), from, to, slot, priceY, ov.color);
+            emitPolyline(vLine, iLine, ema(iSeries, ov.period), from, to, slot, priceY, ov.color);
             break;
         case TCE_IND_BOLLINGER: {
-            auto bb = bollinger(series, ov.period, ov.param);
+            auto bb = bollinger(iSeries, ov.period, ov.param);
             emitPolyline(vLine, iLine, bb.middle, from, to, slot, priceY, ov.color);
             emitPolyline(vLine, iLine, bb.upper,  from, to, slot, priceY, ov.color2);
             emitPolyline(vLine, iLine, bb.lower,  from, to, slot, priceY, ov.color2);
             break;
         }
         case TCE_IND_ICHIMOKU: {
-            auto ic = ichimoku(series, 9, 26, 52, 26);
+            const int tenkan = ov.period > 0 ? ov.period : 9;
+            const int kijun  = ov.p2     > 0 ? ov.p2     : 26;
+            const int senkB  = ov.p3     > 0 ? ov.p3     : 52;
+            const int disp   = ov.p4     > 0 ? ov.p4     : 26;
+            auto ic = ichimoku(iSeries, tenkan, kijun, senkB, disp);
             emitPolyline(vLine, iLine, ic.tenkan, from, to, slot, priceY, ov.color);
             TceColor kijunCol{ov.color2.r, ov.color2.g, ov.color2.b, ov.color2.a};
             emitPolyline(vLine, iLine, ic.kijun,  from, to, slot, priceY, kijunCol);
-            // senkouA / senkouB는 displacement 만큼 미래로 — 가시 범위 안만 그림
-            // 인덱스가 series.size + displacement까지 있으므로 to 범위 한도 내에서 그림
             std::vector<std::optional<double>> aA(cs.size()), aB(cs.size());
             for (size_t i = 0; i < cs.size(); ++i) {
                 if (i < ic.senkouA.size()) aA[i] = ic.senkouA[i];
@@ -443,13 +449,14 @@ void FrameBuilder::build(const Series& series,
             TceColor sB{0.95f, 0.45f, 0.45f, 0.85f};
             emitPolyline(vLine, iLine, aA, from, to, slot, priceY, sA);
             emitPolyline(vLine, iLine, aB, from, to, slot, priceY, sB);
-            // 후행스팬 (chikou)
             TceColor ck{0.65f, 0.45f, 0.95f, 0.85f};
             emitPolyline(vLine, iLine, ic.chikou, from, to, slot, priceY, ck);
             break;
         }
         case TCE_IND_PSAR: {
-            auto p = psar(series, ov.param > 0 ? ov.param : 0.02, 0.2);
+            const double step    = ov.param  > 0 ? ov.param  : 0.02;
+            const double maxStep = ov.param2 > 0 ? ov.param2 : 0.20;
+            auto p = psar(iSeries, step, maxStep);
             const float r = std::max(2.0f, slot * 0.20f);
             for (size_t i = from; i < to; ++i) {
                 if (!p[i]) continue;
@@ -460,7 +467,7 @@ void FrameBuilder::build(const Series& series,
             break;
         }
         case TCE_IND_SUPERTREND: {
-            auto st = superTrend(series, ov.period > 0 ? ov.period : 10,
+            auto st = superTrend(iSeries, ov.period > 0 ? ov.period : 10,
                                  ov.param > 0 ? ov.param : 3.0);
             // 방향 따라 색 분기 (양봉 색/음봉 색)
             std::optional<float> px, py;
@@ -481,7 +488,7 @@ void FrameBuilder::build(const Series& series,
             break;
         }
         case TCE_IND_VWAP: {
-            emitPolyline(vLine, iLine, vwap(series), from, to, slot, priceY, ov.color);
+            emitPolyline(vLine, iLine, vwap(iSeries), from, to, slot, priceY, ov.color);
             break;
         }
         case TCE_IND_PIVOT_STANDARD:
@@ -491,7 +498,7 @@ void FrameBuilder::build(const Series& series,
                 (ov.kind == TCE_IND_PIVOT_STANDARD)  ? PivotKind::Standard :
                 (ov.kind == TCE_IND_PIVOT_FIBONACCI) ? PivotKind::Fibonacci :
                                                         PivotKind::Camarilla;
-            auto p = pivot(series, k);
+            auto p = pivot(iSeries, k);
             // P는 ov.color, R/S는 ov.color2 (옅게)
             TceColor pCol = ov.color;
             TceColor rsCol = ov.color2;
@@ -526,7 +533,7 @@ void FrameBuilder::build(const Series& series,
         std::vector<uint32_t>  iT, iL;
         const float top = panelTopY(panelIdx);
         const float bot = panelBotY(panelIdx);
-        buildSubpanel(vT, iT, vL, iL, series, from, to, slot, top, bot, sp);
+        buildSubpanel(vT, iT, vL, iL, iSeries, from, to, slot, top, bot, sp);
         if (!vT.empty()) out.addMesh(std::move(vT), std::move(iT), PRIM_TRIANGLES);
         if (!vL.empty()) out.addMesh(std::move(vL), std::move(iL), PRIM_LINES);
         layout.subpanels.push_back(Rect{0, top, plotW, bot - top});

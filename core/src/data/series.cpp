@@ -9,9 +9,16 @@ void Series::setHistory(const TceCandle* data, size_t count) {
 }
 
 void Series::append(const TceCandle& c) {
-    if (!candles_.empty() && candles_.back().timestamp == c.timestamp) {
-        candles_.back() = c;
-        return;
+    if (!candles_.empty()) {
+        const double last_ts = candles_.back().timestamp;
+        if (c.timestamp == last_ts) {
+            candles_.back() = c;
+            return;
+        }
+        if (c.timestamp < last_ts) {
+            // 정렬 가정 보호 — 더 작은 timestamp는 무시 (헤더 계약).
+            return;
+        }
     }
     candles_.push_back(c);
 }

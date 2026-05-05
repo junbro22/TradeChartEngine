@@ -10,11 +10,15 @@ class Viewport;
 
 // Overlay (메인 패널 위) 지표
 struct OverlaySpec {
-    TceIndicatorKind kind;       // SMA / EMA / BOLLINGER
-    int              period = 0;
-    double           param  = 2.0; // BB stddev (기본 2.0)
+    TceIndicatorKind kind;       // SMA / EMA / BOLLINGER / ICHIMOKU / PSAR / SUPERTREND / VWAP / PIVOT_*
+    int              period = 0; // SMA/EMA/BB period, Ichimoku tenkan, SuperTrend period
+    int              p2     = 0; // Ichimoku kijun
+    int              p3     = 0; // Ichimoku senkouB
+    int              p4     = 0; // Ichimoku displacement
+    double           param  = 2.0; // BB stddev / PSAR step / SuperTrend multiplier
+    double           param2 = 0.2; // PSAR maxStep
     TceColor         color  = {1, 1, 1, 1};
-    TceColor         color2 = {1, 1, 1, 0.5}; // BB lower
+    TceColor         color2 = {1, 1, 1, 0.5}; // BB lower / Ichimoku kijun / Pivot R-S
 };
 
 // Subpanel (하단 별도 패널) 지표
@@ -42,7 +46,7 @@ struct ChartConfig {
     TceColorScheme   scheme        = TCE_SCHEME_KOREA;
     bool             volumeVisible = true;
     TcePriceAxisMode priceMode     = TCE_PRICE_LINEAR;
-    double           renkoBrickSize = 0.0;   // 0이면 자동 (가시 범위 평균의 1%)
+    double           renkoBrickSize = 0.0;   // 0이면 자동 (마지막 close × 0.5%)
     bool             showGrid      = true;
 };
 
@@ -88,14 +92,18 @@ struct PanelLayout {
 
 class FrameBuilder {
 public:
-    void build(const Series& series,
+    /// @param drawSeries       메인 패널에 그릴 시리즈 (HA/Renko면 변환된 것)
+    /// @param indicatorSeries  지표 계산에 사용할 시리즈. nullptr이면 drawSeries와 동일.
+    ///                         HA 모드에선 원본 series를 넘겨 RSI/MACD 등이 원본 OHLC로 계산되도록 한다.
+    void build(const Series& drawSeries,
                const Viewport& viewport,
                const ChartConfig& config,
                const std::vector<OverlaySpec>& overlays,
                const std::vector<SubpanelSpec>& subpanels,
                const CrosshairState& crosshair,
                FrameOutput& out,
-               PanelLayout& layout);
+               PanelLayout& layout,
+               const Series* indicatorSeries = nullptr);
 };
 
 } // namespace tce

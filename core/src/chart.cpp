@@ -11,14 +11,18 @@ void Chart::setHistory(const TceCandle* data, size_t count) {
 }
 
 void Chart::appendCandle(const TceCandle& c) {
-    bool wasAtRightEdge = (viewport_.rightOffset() == 0);
+    const size_t prevSize = series_.size();
+    const bool wasAtRightEdge = (viewport_.rightOffset() == 0);
     series_.append(c);
-    if (!autoScroll_ && wasAtRightEdge) {
-        // auto-scroll 꺼져있고 사용자가 오른쪽 끝에 있었으면 한 칸 뒤로 밀어
-        // 보고 있던 캔들을 유지 (선택적 동작)
-        // 기본 동작: 그대로 두면 viewport가 자동 우측 정렬됨
+    const bool grew = (series_.size() > prevSize);
+    if (!grew) return; // 갱신/거부된 경우는 viewport 손대지 않음
+
+    if (autoScroll_ && wasAtRightEdge) {
+        // 우측 끝을 보던 사용자: 새 캔들이 우측 끝이 되도록 rightOffset 0 유지 (no-op).
+    } else if (!wasAtRightEdge) {
+        // 사용자가 과거를 보고 있었음 — 보고 있던 캔들을 유지하기 위해 한 칸 뒤로.
+        viewport_.setRightOffset(viewport_.rightOffset() + 1);
     }
-    // autoScroll_ == true 면 rightOffset 그대로 (0이면 새 캔들이 자동 우측 끝)
 }
 
 void Chart::updateLast(double close, double volume) {
@@ -32,7 +36,29 @@ void Chart::addOverlay(TceIndicatorKind k, int period, double param,
     if (it != overlays_.end()) {
         it->param = param; it->color = color; it->color2 = color2; return;
     }
-    overlays_.push_back({k, period, param, color, color2});
+    OverlaySpec s;
+    s.kind = k; s.period = period; s.param = param;
+    s.color = color; s.color2 = color2;
+    overlays_.push_back(s);
+}
+
+void Chart::addOverlayEx(TceIndicatorKind k,
+                         int period, int p2, int p3, int p4,
+                         double param, double param2,
+                         TceColor color, TceColor color2) {
+    auto it = std::find_if(overlays_.begin(), overlays_.end(),
+        [&](const OverlaySpec& s) { return s.kind == k && s.period == period; });
+    if (it != overlays_.end()) {
+        it->p2 = p2; it->p3 = p3; it->p4 = p4;
+        it->param = param; it->param2 = param2;
+        it->color = color; it->color2 = color2;
+        return;
+    }
+    OverlaySpec s;
+    s.kind = k; s.period = period; s.p2 = p2; s.p3 = p3; s.p4 = p4;
+    s.param = param; s.param2 = param2;
+    s.color = color; s.color2 = color2;
+    overlays_.push_back(s);
 }
 
 void Chart::removeOverlay(TceIndicatorKind k, int period) {
@@ -55,9 +81,12 @@ void Chart::addSubpanel(TceIndicatorKind k, int p1, int p2, int p3,
     subpanels_.push_back({k, p1, p2, p3, color1, color2, color3});
 }
 
-void Chart::removeSubpanel(TceIndicatorKind k) {
+void Chart::removeSubpanel(TceIndicatorKind k, int period) {
     subpanels_.erase(std::remove_if(subpanels_.begin(), subpanels_.end(),
-        [&](const SubpanelSpec& s) { return s.kind == k; }),
+        [&](const SubpanelSpec& s) {
+            if (s.kind != k) return false;
+            return period <= 0 || s.p1 == period;
+        }),
         subpanels_.end());
 }
 
@@ -80,12 +109,15 @@ void Chart::clearCrosshair() {
 
 FrameOutput& Chart::buildFrame() {
     // Heikin-Ashi / Renko는 변환된 시리즈로 그림
+    // 단, 지표는 항상 원본(series_)으로 계산해 사용자가 push한 OHLC 의미를 유지.
     Series tmp;
     const Series* drawSeries = &series_;
+    const Series* indicatorSeries = nullptr; // nullptr = drawSeries와 동일
     if (config_.seriesType == TCE_SERIES_HEIKIN_ASHI) {
         auto hac = toHeikinAshi(series_);
         tmp.setHistory(hac.data(), hac.size());
         drawSeries = &tmp;
+        indicatorSeries = &series_;
     } else if (config_.seriesType == TCE_SERIES_RENKO) {
         double brick = config_.renkoBrickSize;
         if (brick <= 0 && !series_.candles().empty())
@@ -95,10 +127,12 @@ FrameOutput& Chart::buildFrame() {
             if (!rkc.empty()) {
                 tmp.setHistory(rkc.data(), rkc.size());
                 drawSeries = &tmp;
+                indicatorSeries = &series_;
             }
         }
     }
-    builder_.build(*drawSeries, viewport_, config_, overlays_, subpanels_, crosshair_, output_, lastLayout_);
+    builder_.build(*drawSeries, viewport_, config_, overlays_, subpanels_,
+                   crosshair_, output_, lastLayout_, indicatorSeries);
     return output_;
 }
 

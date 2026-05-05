@@ -19,7 +19,7 @@ void tce_destroy(TceContext* ctx) {
 }
 
 const char* tce_version(void) {
-    return "0.1.0";
+    return "0.7.0";
 }
 
 void tce_set_history(TceContext* ctx, const TceCandle* candles, size_t count) {
@@ -39,6 +39,19 @@ void tce_update_last(TceContext* ctx, double close, double volume) {
 
 size_t tce_candle_count(const TceContext* ctx) {
     return ctx ? ctx->chart.candleCount() : 0;
+}
+
+int tce_get_candle(const TceContext* ctx, size_t index, TceCandle* out) {
+    if (!ctx || !out) return 0;
+    return ctx->chart.getCandle(index, *out) ? 1 : 0;
+}
+
+void tce_reset_viewport(TceContext* ctx) {
+    if (ctx) ctx->chart.resetViewport();
+}
+
+void tce_fit_all(TceContext* ctx) {
+    if (ctx) ctx->chart.fitAll();
 }
 
 void tce_set_series_type(TceContext* ctx, TceSeriesType type) {
@@ -71,15 +84,44 @@ void tce_set_show_grid(TceContext* ctx, int show) {
 
 void tce_add_indicator(TceContext* ctx, TceIndicatorKind kind, int period, TceColor color) {
     if (!ctx) return;
-    if (kind == TCE_IND_SMA || kind == TCE_IND_EMA) {
+    // 단일-period 지표를 일반 진입점에서 dispatch.
+    // 다중-파라미터 지표(BB/MACD/Stoch/Ichimoku/PSAR/SuperTrend/DMI)는 전용 함수 필요.
+    switch (kind) {
+    case TCE_IND_SMA:
+    case TCE_IND_EMA:
         ctx->chart.addOverlay(kind, period, 0.0, color);
+        return;
+    case TCE_IND_VWAP:
+        ctx->chart.addOverlay(TCE_IND_VWAP, 0, 0.0, color);
+        return;
+    case TCE_IND_RSI:
+        ctx->chart.addSubpanel(TCE_IND_RSI, period, 0, 0, color);
+        return;
+    case TCE_IND_ATR:
+        ctx->chart.addSubpanel(TCE_IND_ATR, period, 0, 0, color);
+        return;
+    case TCE_IND_CCI:
+        ctx->chart.addSubpanel(TCE_IND_CCI, period, 0, 0, color);
+        return;
+    case TCE_IND_WILLIAMS_R:
+        ctx->chart.addSubpanel(TCE_IND_WILLIAMS_R, period, 0, 0, color);
+        return;
+    case TCE_IND_OBV:
+        ctx->chart.addSubpanel(TCE_IND_OBV, 0, 0, 0, color);
+        return;
+    case TCE_IND_MFI:
+        ctx->chart.addSubpanel(TCE_IND_MFI, period, 0, 0, color);
+        return;
+    default:
+        // 다중-파라미터 지표는 전용 함수에서만 등록 가능.
+        return;
     }
 }
 
 void tce_remove_indicator(TceContext* ctx, TceIndicatorKind kind, int period) {
     if (!ctx) return;
     ctx->chart.removeOverlay(kind, period);
-    ctx->chart.removeSubpanel(kind);
+    ctx->chart.removeSubpanel(kind, period);
 }
 
 void tce_clear_indicators(TceContext* ctx) {
@@ -114,18 +156,24 @@ void tce_add_atr(TceContext* ctx, int period, TceColor color) {
     ctx->chart.addSubpanel(TCE_IND_ATR, period, 0, 0, color);
 }
 
-void tce_add_ichimoku(TceContext* ctx, int tenkan, int kijun, int /*senkouB*/, int /*displacement*/,
+void tce_add_ichimoku(TceContext* ctx, int tenkan, int kijun, int senkouB, int displacement,
                       TceColor tenkanColor, TceColor kijunColor) {
     if (!ctx) return;
-    // 현재 frame_builder는 (9, 26, 52, 26) 고정. 향후 OverlaySpec 확장 시 사용.
-    ctx->chart.addOverlay(TCE_IND_ICHIMOKU, tenkan > 0 ? tenkan : 9, kijun > 0 ? kijun : 26,
-                          tenkanColor, kijunColor);
+    ctx->chart.addOverlayEx(TCE_IND_ICHIMOKU,
+                            tenkan > 0 ? tenkan : 9,
+                            kijun  > 0 ? kijun  : 26,
+                            senkouB > 0 ? senkouB : 52,
+                            displacement > 0 ? displacement : 26,
+                            0.0, 0.0,
+                            tenkanColor, kijunColor);
 }
 
 void tce_add_psar(TceContext* ctx, double step, double maxStep, TceColor color) {
     if (!ctx) return;
-    (void)maxStep; // OverlaySpec 한계 — 향후 확장
-    ctx->chart.addOverlay(TCE_IND_PSAR, 0, step > 0 ? step : 0.02, color);
+    ctx->chart.addOverlayEx(TCE_IND_PSAR, 0, 0, 0, 0,
+                            step > 0 ? step : 0.02,
+                            maxStep > 0 ? maxStep : 0.20,
+                            color, color);
 }
 
 void tce_add_supertrend(TceContext* ctx, int period, double multiplier, TceColor color) {

@@ -58,10 +58,22 @@ void Viewport::pan(float dx_pixels) {
     rightOffset_ = std::max(0, rightOffset_ + delta);
 }
 
-void Viewport::zoom(float factor, float /*anchor_x*/) {
+void Viewport::zoom(float factor, float anchor_x) {
     if (factor <= 0.0f) return;
+    // anchor_x 시간축 위치가 zoom 후에도 같은 캔들에 머물도록 rightOffset 보정.
+    // anchor에 매핑된 슬롯 인덱스(가시 범위 내)는 visibleCount * (1 - x/W) 우측 거리에 있다.
+    const float w = slotWidth();
+    const int oldVisible = visibleCount_;
     int next = static_cast<int>(std::round(visibleCount_ / factor));
     setVisibleCount(next);
+    const int newVisible = visibleCount_;
+    if (oldVisible == newVisible || w <= 0.0f || width_ <= 0.0f) return;
+    // anchor 슬롯의 우측 끝 기준 거리(슬롯 단위) — 시각적으로 anchor 위치 유지.
+    float anchorFromRight = (width_ - anchor_x) / w; // old slot 단위
+    int delta = static_cast<int>(std::round(
+        anchorFromRight * (1.0f - static_cast<float>(newVisible) / static_cast<float>(oldVisible))
+    ));
+    rightOffset_ = std::max(0, rightOffset_ + delta);
 }
 
 } // namespace tce
