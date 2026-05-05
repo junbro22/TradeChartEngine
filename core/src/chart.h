@@ -4,6 +4,7 @@
 #include "data/series.h"
 #include "viewport/viewport.h"
 #include "renderer/frame_builder.h"
+#include "renderer/label_builder.h"
 #include <vector>
 
 namespace tce {
@@ -49,8 +50,13 @@ public:
     void clearCrosshair();
     const CrosshairState& crosshair() const { return crosshair_; }
 
+    // auto-scroll
+    void setAutoScroll(bool v) { autoScroll_ = v; }
+    bool autoScroll() const    { return autoScroll_; }
+
     // render
     FrameOutput& buildFrame();
+    LabelOutput& buildLabels();   // buildFrame 직후 호출 (같은 layout 사용)
 
 private:
     Series                       series_;
@@ -61,6 +67,10 @@ private:
     CrosshairState               crosshair_;
     FrameOutput                  output_;
     FrameBuilder                 builder_;
+    LabelOutput                  labelOutput_;
+    LabelBuilder                 labelBuilder_;
+    PanelLayout                  lastLayout_;
+    bool                         autoScroll_ = true;
 };
 
 } // namespace tce

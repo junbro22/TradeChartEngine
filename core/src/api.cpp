@@ -146,6 +146,24 @@ TceCrosshairInfo tce_crosshair_info(const TceContext* ctx) {
     return info;
 }
 
+void tce_set_auto_scroll(TceContext* ctx, int enabled) {
+    if (ctx) ctx->chart.setAutoScroll(enabled != 0);
+}
+
+int tce_auto_scroll(const TceContext* ctx) {
+    return (ctx && ctx->chart.autoScroll()) ? 1 : 0;
+}
+
+TceLabels tce_build_labels(TceContext* ctx) {
+    TceLabels out{};
+    if (!ctx) return out;
+    auto& labels = ctx->chart.buildLabels();
+    const auto& v = labels.items();
+    out.items = v.data();
+    out.count = v.size();
+    return out;
+}
+
 TceFrame tce_build_frame(TceContext* ctx) {
     TceFrame f{};
     if (!ctx) return f;

@@ -10,7 +10,14 @@ void Chart::setHistory(const TceCandle* data, size_t count) {
 }
 
 void Chart::appendCandle(const TceCandle& c) {
+    bool wasAtRightEdge = (viewport_.rightOffset() == 0);
     series_.append(c);
+    if (!autoScroll_ && wasAtRightEdge) {
+        // auto-scroll 꺼져있고 사용자가 오른쪽 끝에 있었으면 한 칸 뒤로 밀어
+        // 보고 있던 캔들을 유지 (선택적 동작)
+        // 기본 동작: 그대로 두면 viewport가 자동 우측 정렬됨
+    }
+    // autoScroll_ == true 면 rightOffset 그대로 (0이면 새 캔들이 자동 우측 끝)
 }
 
 void Chart::updateLast(double close, double volume) {
@@ -71,8 +78,18 @@ void Chart::clearCrosshair() {
 }
 
 FrameOutput& Chart::buildFrame() {
-    builder_.build(series_, viewport_, config_, overlays_, subpanels_, crosshair_, output_);
+    builder_.build(series_, viewport_, config_, overlays_, subpanels_, crosshair_, output_, lastLayout_);
     return output_;
+}
+
+LabelOutput& Chart::buildLabels() {
+    labelBuilder_.build(series_, viewport_, config_,
+                        lastLayout_.subpanelCount,
+                        crosshair_,
+                        lastLayout_.priceMin, lastLayout_.priceMax,
+                        lastLayout_.mainTop, lastLayout_.mainBottom,
+                        output_, labelOutput_);
+    return labelOutput_;
 }
 
 } // namespace tce
