@@ -146,6 +146,10 @@ void tce_clear_indicators(TceContext* ctx);
 /// 일반적인 값: period=20, stddev=2.0.
 void tce_add_bollinger(TceContext* ctx, int period, double stddev, TceColor color);
 
+/// Hull Moving Average — WMA 기반의 라그 적은 MA. 표준 period=20.
+/// 산식: WMA(2*WMA(close, period/2) - WMA(close, period), sqrt(period))
+void tce_add_hma(TceContext* ctx, int period, TceColor color);
+
 /// Donchian Channels — period 캔들의 high.max(상단)/low.min(하단)/중앙선.
 /// 표준값 period=20. 터틀 트레이딩에서 자주 쓰임.
 /// @param color      중앙선(중간) 색
@@ -227,6 +231,12 @@ void tce_add_macd(TceContext* ctx, int fast, int slow, int signal,
 /// 표준값: kPeriod=14, dPeriod=3, smooth=3. 20/80 가이드선 자동.
 void tce_add_stochastic(TceContext* ctx, int kPeriod, int dPeriod, int smooth,
                         TceColor kColor, TceColor dColor);
+
+/// Stochastic RSI — RSI 시리즈에 stochastic 공식 적용.
+/// 표준값 rsiPeriod=14, kPeriod=14, dPeriod=3, smooth=3. 0..100, 20/80 가이드선 자동.
+void tce_add_stochastic_rsi(TceContext* ctx,
+                             int rsiPeriod, int kPeriod, int dPeriod, int smooth,
+                             TceColor kColor, TceColor dColor);
 
 /// ATR — Wilder의 평균 진폭. period 표준값 14.
 void tce_add_atr(TceContext* ctx, int period, TceColor color);
@@ -325,6 +335,10 @@ int tce_query_macd(const TceContext* ctx, size_t candle_index,
 /// Stochastic query — %K / %D 2채널.
 int tce_query_stochastic(const TceContext* ctx, size_t candle_index,
                          double* k, double* d);
+
+/// Stochastic RSI query — %K / %D 2채널 (Stochastic과 동일 시그니처).
+int tce_query_stochastic_rsi(const TceContext* ctx, size_t candle_index,
+                              double* k, double* d);
 
 /// DMI/ADX query — +DI / -DI / ADX 3채널.
 int tce_query_dmi(const TceContext* ctx, int period, size_t candle_index,
@@ -428,6 +442,15 @@ void tce_drawing_clear(TceContext* ctx);
 /// 화면 px 위치에서 가장 가까운 드로잉의 id (없거나 거리 임계 초과면 0).
 /// 사용자 tap에서 활용 — 선택 → 삭제 등.
 int  tce_drawing_hit_test(const TceContext* ctx, float screen_x, float screen_y);
+
+/// endpoint hit-test — drawing의 어느 점(0/1)이 잡혔는지 반환.
+/// pointTolPx 안 endpoint가 있으면 *out_point_idx에 0 또는 1.
+/// 없으면 line hit으로 fallback — *out_point_idx = -1.
+/// 둘 다 실패 0 반환. drag UX 구현용 (host가 잡힌 점을 update_drawing으로 갱신).
+int  tce_hit_test_drawing_point(const TceContext* ctx,
+                                 float screen_x, float screen_y,
+                                 float point_tol_px, float line_tol_px,
+                                 int* out_point_idx);
 
 /// 드로잉 통째 평행이동 (dx/dy 픽셀). 이미 도메인 좌표(timestamp/price)로 보관되어 있어
 /// 화면 px 입력은 도메인 단위로 자동 변환 후 누적.
