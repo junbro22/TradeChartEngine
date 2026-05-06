@@ -117,6 +117,11 @@ public:
     const std::vector<Drawing>& drawings() const { return drawings_.all(); }
     // 화면 px 위치에서 가장 가까운 드로잉 id (없으면 0)
     int  hitTestDrawing(float screenX, float screenY, float toleranceePx = 12.0f) const;
+    /// endpoint 우선 hit. point_tol 안의 endpoint가 있으면 그 점 반환,
+    /// 없으면 line hit fallback (out_point_idx = -1). 둘 다 실패면 0.
+    int  hitTestDrawingPoint(float screenX, float screenY,
+                              float pointTolPx, float lineTolPx,
+                              int& outPointIdx) const;
     // 드로잉 통째 이동 (모든 점이 동일 dx/dy만큼)
     void translateDrawing(int id, float dxPx, float dyPx);
 

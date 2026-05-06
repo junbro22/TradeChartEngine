@@ -335,6 +335,38 @@ int test_frame() {
         tce_set_series_type(ctx, TCE_SERIES_CANDLE);
     }
 
+    // Drawing endpoint hit-test
+    {
+        tce_drawing_clear(ctx);
+        TceColor c{1, 0, 0, 1};
+        // trendline (50, 100) → (200, 250)
+        int t = tce_drawing_begin(ctx, TCE_DRAW_TRENDLINE, 50, 100, c);
+        EXPECT(t > 0);
+        tce_drawing_update(ctx, t, 1, 200, 250);
+
+        // 첫 점 근처 hit
+        int idx = -1;
+        int id = tce_hit_test_drawing_point(ctx, 52, 102, 14, 12, &idx);
+        EXPECT(id == t);
+        EXPECT(idx == 0);
+
+        // 두 번째 점 근처 hit
+        id = tce_hit_test_drawing_point(ctx, 198, 251, 14, 12, &idx);
+        EXPECT(id == t);
+        EXPECT(idx == 1);
+
+        // 라인 중간 — endpoint 못 찾고 line fallback
+        id = tce_hit_test_drawing_point(ctx, 125, 175, 14, 12, &idx);
+        EXPECT(id == t);
+        EXPECT(idx == -1);
+
+        // 멀리 — 0 반환
+        id = tce_hit_test_drawing_point(ctx, 500, 500, 14, 12, &idx);
+        EXPECT(id == 0);
+
+        tce_drawing_clear(ctx);
+    }
+
     // Fib Extension 드로잉 — begin/update/export round-trip
     {
         tce_drawing_clear(ctx);

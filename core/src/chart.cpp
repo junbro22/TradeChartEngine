@@ -376,6 +376,69 @@ int Chart::hitTestDrawing(float screenX, float screenY, float tolPx) const {
     return best;
 }
 
+int Chart::hitTestDrawingPoint(float screenX, float screenY,
+                                float pointTolPx, float lineTolPx,
+                                int& outPointIdx) const {
+    const auto& items = drawings_.all();
+    if (items.empty()) return 0;
+
+    // 도메인 → 화면 변환 헬퍼 (hitTestDrawing 람다와 동일 — 단순 중복).
+    auto toScreen = [&](const DrawingPoint& p) -> std::pair<float, float> {
+        float x = 0, y = 0;
+        const auto& cs = series_.candles();
+        if (!cs.empty()) {
+            size_t from, to; viewport_.rangeFor(cs.size(), from, to);
+            const float plotW = lastLayout_.plot.w;
+            const float slot = plotW / static_cast<float>(viewport_.visibleCount());
+            if (p.timestamp <= cs.front().timestamp)
+                x = (-(double)from + 0.5) * slot;
+            else if (p.timestamp >= cs.back().timestamp)
+                x = ((double)cs.size() - 1 - from + 0.5) * slot;
+            else {
+                auto it = std::lower_bound(cs.begin(), cs.end(), p.timestamp,
+                    [](const TceCandle& c, double v) { return c.timestamp < v; });
+                size_t hi = it - cs.begin();
+                size_t lo = hi - 1;
+                double frac = (cs[hi].timestamp != cs[lo].timestamp)
+                    ? (p.timestamp - cs[lo].timestamp) / (cs[hi].timestamp - cs[lo].timestamp)
+                    : 0;
+                double idx = (double)lo + frac;
+                x = (idx - (double)from + 0.5) * slot;
+            }
+        }
+        y = layoutPriceToY(lastLayout_, p.price);
+        return {x, y};
+    };
+
+    // 1단계 — endpoint hit 우선
+    const float ptol2 = pointTolPx * pointTolPx;
+    int    bestId = 0;
+    int    bestPi = -1;
+    float  bestDist = ptol2;
+    for (const auto& d : items) {
+        for (size_t pi = 0; pi < d.points.size(); ++pi) {
+            auto [px, py] = toScreen(d.points[pi]);
+            float dx = screenX - px, dy = screenY - py;
+            float dist = dx * dx + dy * dy;
+            if (dist < bestDist) {
+                bestDist = dist; bestId = d.id; bestPi = static_cast<int>(pi);
+            }
+        }
+    }
+    if (bestId > 0) {
+        outPointIdx = bestPi;
+        return bestId;
+    }
+
+    // 2단계 — line hit fallback (기존 hitTestDrawing 호출로 통일)
+    int lineId = hitTestDrawing(screenX, screenY, lineTolPx);
+    if (lineId > 0) {
+        outPointIdx = -1;
+        return lineId;
+    }
+    return 0;
+}
+
 void Chart::translateDrawing(int id, float dxPx, float dyPx) {
     // dxPx, dyPx → 도메인 변화량으로 변환 후 DrawingStore에 위임.
     // 가격 변환은 LOG/PERCENT 모드에서 정확히 비선형이라 single-delta로는 근사.

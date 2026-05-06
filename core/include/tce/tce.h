@@ -443,6 +443,15 @@ void tce_drawing_clear(TceContext* ctx);
 /// 사용자 tap에서 활용 — 선택 → 삭제 등.
 int  tce_drawing_hit_test(const TceContext* ctx, float screen_x, float screen_y);
 
+/// endpoint hit-test — drawing의 어느 점(0/1)이 잡혔는지 반환.
+/// pointTolPx 안 endpoint가 있으면 *out_point_idx에 0 또는 1.
+/// 없으면 line hit으로 fallback — *out_point_idx = -1.
+/// 둘 다 실패 0 반환. drag UX 구현용 (host가 잡힌 점을 update_drawing으로 갱신).
+int  tce_hit_test_drawing_point(const TceContext* ctx,
+                                 float screen_x, float screen_y,
+                                 float point_tol_px, float line_tol_px,
+                                 int* out_point_idx);
+
 /// 드로잉 통째 평행이동 (dx/dy 픽셀). 이미 도메인 좌표(timestamp/price)로 보관되어 있어
 /// 화면 px 입력은 도메인 단위로 자동 변환 후 누적.
 void tce_drawing_translate(TceContext* ctx, int id, float dx_px, float dy_px);

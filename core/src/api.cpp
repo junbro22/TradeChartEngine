@@ -457,6 +457,21 @@ int tce_drawing_hit_test(const TceContext* ctx, float x, float y) {
     return ctx ? ctx->chart.hitTestDrawing(x, y) : 0;
 }
 
+int tce_hit_test_drawing_point(const TceContext* ctx,
+                                float screen_x, float screen_y,
+                                float point_tol_px, float line_tol_px,
+                                int* out_point_idx) {
+    if (!ctx || !out_point_idx) return 0;
+    int idx = -1;
+    int id = ctx->chart.hitTestDrawingPoint(screen_x, screen_y,
+                                              point_tol_px > 0 ? point_tol_px : 14.0f,
+                                              line_tol_px  > 0 ? line_tol_px  : 12.0f,
+                                              idx);
+    if (id <= 0) return 0;
+    *out_point_idx = idx;
+    return id;
+}
+
 void tce_drawing_translate(TceContext* ctx, int id, float dx, float dy) {
     if (ctx) ctx->chart.translateDrawing(id, dx, dy);
 }
