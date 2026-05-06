@@ -1,7 +1,6 @@
 #include "indicator/stoch_rsi.h"
 #include "indicator/rsi.h"
 #include "data/series.h"
-#include <algorithm>
 #include <limits>
 
 namespace tce {

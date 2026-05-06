@@ -609,30 +609,13 @@ void FrameBuilder::build(const Series& series,
             float pocY = priceY.bottom - (static_cast<float>(pocBin) + 0.5f) * binH;
             emitLine(vLine, iLine, profL, pocY, plotR, pocY, pocCol);
 
-            // bin idx → raw price 헬퍼 (priceY normalized 공간 균등 등분)
-            auto binToPrice = [&](double binIdxFloat) {
+            // PanelLayout 결과 — bin index를 raw price로 환산해 라벨에 노출.
+            // priceY.minP/maxP는 normalized 공간이므로 layoutDenormalizePrice로 raw 복원.
+            auto binNvToPrice = [&](double binIdxFloat) {
                 double t = binIdxFloat / static_cast<double>(bins);
                 double nv = priceY.minP + t * (priceY.maxP - priceY.minP);
                 return layoutDenormalizePrice(layout, nv);
             };
-
-            // PanelLayout에 결과 보관 — label_builder가 priceAxis 라벨로 emit.
-            // raw price 기록 시 normalized → raw 역변환은 layout 필드를 layout.priceMode/percentBase로
-            // 가져와야 하는데 이 시점에 layout은 아직 priceMode/percentBase가 채워지지 않았다.
-            // (해당 채움은 line 348~352). 따라서 같은 priceY 정보를 직접 사용.
-            auto denorm = [&](double nv) {
-                if (priceY.mode == TCE_PRICE_LOG) return std::exp(nv);
-                if (priceY.mode == TCE_PRICE_PERCENT && priceY.percentBase > 0)
-                    return priceY.percentBase * (1.0 + nv / 100.0);
-                return nv;
-            };
-            auto binNvToPrice = [&](double binIdxFloat) {
-                double t = binIdxFloat / static_cast<double>(bins);
-                double nv = priceY.minP + t * (priceY.maxP - priceY.minP);
-                return denorm(nv);
-            };
-            (void)binToPrice; // layout 변환 헬퍼는 unused (priceY.percentBase 직접 사용으로 일원화)
-
             layout.volumeProfile.present  = true;
             layout.volumeProfile.pocPrice = binNvToPrice(pocBin + 0.5);
 
