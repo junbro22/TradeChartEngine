@@ -1,6 +1,7 @@
 #include "tce/tce.h"
 #include <cstdio>
 #include <cmath>
+#include <string>
 
 #define EXPECT(cond) do { if (!(cond)) { std::printf("  FAIL %s:%d\n", __FILE__, __LINE__); ++failed; } } while (0)
 
@@ -313,7 +314,7 @@ int test_frame() {
         tce_clear_indicators(ctx);
     }
 
-    // Volume Profile frame 빌드 (회귀)
+    // Volume Profile frame 빌드 (회귀) + POC/VAH/VAL 라벨
     {
         TceColor bar{0.5f, 0.7f, 1.0f, 1.0f};
         TceColor poc{1.0f, 0.85f, 0.20f, 1.0f};
@@ -321,6 +322,19 @@ int test_frame() {
         TceFrame f = tce_build_frame(ctx);
         EXPECT(f.mesh_count >= 1);
         tce_release_frame(f);
+        // 라벨에 POC/VAH/VAL 텍스트가 포함되었는지 검증
+        TceLabels labels = tce_build_labels(ctx);
+        bool foundPOC = false, foundVAH = false, foundVAL = false;
+        for (size_t i = 0; i < labels.count; ++i) {
+            const char* t = labels.items[i].text;
+            if (!t) continue;
+            if (std::string(t).find("POC") != std::string::npos) foundPOC = true;
+            if (std::string(t).find("VAH") != std::string::npos) foundVAH = true;
+            if (std::string(t).find("VAL") != std::string::npos) foundVAL = true;
+        }
+        EXPECT(foundPOC);
+        EXPECT(foundVAH);
+        EXPECT(foundVAL);
         tce_clear_indicators(ctx);
 
         // Renko 모드에서는 no-op (no Volume Profile mesh emit) — frame 자체는 정상 빌드

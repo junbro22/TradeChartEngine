@@ -85,6 +85,14 @@ struct Rect {
     float h = 0;
 };
 
+// Volume Profile의 frame-side 결과 — label_builder가 priceAxis에 라벨 표시용으로 사용.
+struct VolumeProfileResult {
+    bool   present  = false;
+    double pocPrice = 0;
+    double vahPrice = 0;
+    double valPrice = 0;
+};
+
 // frame 빌드 후 레이아웃·가격 범위를 외부에 노출 (label_builder/wrapper가 사용)
 //
 // 가격 좌표 정책:
@@ -103,6 +111,7 @@ struct PanelLayout {
     double priceMax = 0;        // normalized
     TcePriceAxisMode priceMode = TCE_PRICE_LINEAR;
     double percentBase = 0.0;   // PERCENT 모드의 기준가 (0이면 PERCENT 비활성)
+    VolumeProfileResult volumeProfile;  // present=false면 미등록
 };
 
 inline double layoutNormalizePrice(const PanelLayout& l, double rawPrice) {

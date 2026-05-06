@@ -195,6 +195,25 @@ void LabelBuilder::build(const Series& series,
         }
     }
 
+    // ===== Volume Profile POC/VAH/VAL 라벨 (priceAxis) =====
+    if (layout.volumeProfile.present) {
+        const TceColor pocLblCol{1.00f, 0.85f, 0.30f, 1.0f};
+        const TceColor vaLblCol {0.85f, 0.85f, 0.55f, 0.85f};
+        const TceColor lblBg    {0.13f, 0.16f, 0.20f, 0.90f};
+        auto emitVPLabel = [&](double price, const std::string& prefix, TceColor color) {
+            float y = layoutPriceToY(layout, price);
+            if (y < panelTop || y > panelBottom) return;
+            char buf[32];
+            std::snprintf(buf, sizeof(buf), "%s %.1f", prefix.c_str(), price);
+            labelOut.add(std::string(buf), rightAxisX, y,
+                         TCE_ANCHOR_CENTER_CENTER, TCE_LABEL_PRICE_AXIS,
+                         color, lblBg);
+        };
+        emitVPLabel(layout.volumeProfile.pocPrice, "POC", pocLblCol);
+        emitVPLabel(layout.volumeProfile.vahPrice, "VAH", vaLblCol);
+        emitVPLabel(layout.volumeProfile.valPrice, "VAL", vaLblCol);
+    }
+
     // ===== 크로스헤어 라벨 =====
     if (cross.visible && cross.candleIndex >= 0
         && static_cast<size_t>(cross.candleIndex) < cs.size()) {
