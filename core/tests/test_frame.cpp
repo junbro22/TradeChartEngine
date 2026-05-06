@@ -313,6 +313,49 @@ int test_frame() {
         tce_clear_indicators(ctx);
     }
 
+    // Volume Profile frame 빌드 (회귀)
+    {
+        TceColor bar{0.5f, 0.7f, 1.0f, 1.0f};
+        TceColor poc{1.0f, 0.85f, 0.20f, 1.0f};
+        tce_add_volume_profile(ctx, 16, 0.20, bar, poc);
+        TceFrame f = tce_build_frame(ctx);
+        EXPECT(f.mesh_count >= 1);
+        tce_release_frame(f);
+        tce_clear_indicators(ctx);
+
+        // Renko 모드에서는 no-op (no Volume Profile mesh emit) — frame 자체는 정상 빌드
+        tce_set_series_type(ctx, TCE_SERIES_RENKO);
+        tce_set_renko_brick_size(ctx, 1.0);
+        tce_add_volume_profile(ctx, 16, 0.20, bar, poc);
+        TceFrame fr = tce_build_frame(ctx);
+        // Renko mode 자체가 빌드되므로 mesh_count >= 1 (캔들/그리드 등). Volume Profile 분기는 skip.
+        EXPECT(fr.mesh_count >= 1);
+        tce_release_frame(fr);
+        tce_clear_indicators(ctx);
+        tce_set_series_type(ctx, TCE_SERIES_CANDLE);
+    }
+
+    // Fib Extension 드로잉 — begin/update/export round-trip
+    {
+        tce_drawing_clear(ctx);
+        TceColor c{0, 1, 1, 1};
+        int fid = tce_drawing_begin(ctx, TCE_DRAW_FIB_EXTENSION, 100, 200, c);
+        EXPECT(fid > 0);
+        tce_drawing_update(ctx, fid, 1, 300, 250);
+        EXPECT(tce_drawing_count(ctx) == 1);
+
+        TceDrawingExport ex{};
+        EXPECT(tce_drawing_export(ctx, 0, &ex) == 1);
+        EXPECT(ex.kind == TCE_DRAW_FIB_EXTENSION);
+        EXPECT(ex.point_count == 2);
+
+        // import round-trip — 검증 상한이 6까지 포함되었는지
+        tce_drawing_clear(ctx);
+        EXPECT(tce_drawing_import(ctx, &ex) > 0);
+        EXPECT(tce_drawing_count(ctx) == 1);
+        tce_drawing_clear(ctx);
+    }
+
     // 세션 offset — VWAP day boundary 변화
     {
         // 새 chart로 깨끗한 데이터 사용

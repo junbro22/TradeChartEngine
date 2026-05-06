@@ -165,6 +165,18 @@ void tce_add_keltner(TceContext* ctx, int emaPeriod, int atrPeriod, double multi
 /// ZigZag 기반 알림 신뢰성을 검증한 후 사용할 것.
 void tce_add_zigzag(TceContext* ctx, double deviationPct, TceColor color);
 
+/// Volume Profile — 가시 가격 범위를 bins등분 후 bin별 거래량 합산.
+/// plot 우측 widthRatio 영역에 반투명 막대 + POC(거래량 최대 bin) / VAH/VAL(70% 누적 양 끝)
+/// 가로선. **alpha 0.30으로 강제** — 캔들/지표가 막대 뒤로 보이게.
+/// **Renko 모드**: 미지원 — brick 시리즈가 시간 무관이라 volume 매핑이 의미 없음. no-op.
+/// **viewport 변경 시 재계산** — indicator 캐시 대상 아님.
+/// @param bins        가격 등분 수 (default 24)
+/// @param widthRatio  plot 폭 대비 막대 영역 비율 (0..1, default 0.20)
+/// @param barColor    bin 막대 색 (alpha는 0.30으로 자동 보정)
+/// @param pocColor    POC/VAH/VAL 가로선 색
+void tce_add_volume_profile(TceContext* ctx, int bins, double widthRatio,
+                             TceColor barColor, TceColor pocColor);
+
 /// 일목균형표 — 전환선/기준선/선행스팬A·B/후행스팬 + 구름.
 /// 표준값: tenkan=9, kijun=26, senkouB=52, displacement=26.
 /// 선행스팬/후행스팬 색은 엔진 기본값(반투명)을 사용 — wrapper에서 주관 색 설정 불필요.

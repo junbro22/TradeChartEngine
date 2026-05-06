@@ -121,6 +121,7 @@ typedef enum TceIndicatorKind {
     TCE_IND_DONCHIAN          = 10,   ///< Donchian Channels — period 캔들 high.max/low.min/center
     TCE_IND_KELTNER           = 11,   ///< Keltner Channels — EMA(emaP) ± multiplier * ATR(atrP)
     TCE_IND_ZIGZAG            = 12,   ///< ZigZag — deviationPct% 이상의 swing high/low 직선 연결
+    TCE_IND_VOLUME_PROFILE    = 13,   ///< Volume Profile — 가시 가격 범위 bin별 거래량 + POC/VAH/VAL
 
     /* ── Subpanel (별도 패널) ── */
     TCE_IND_RSI               = 100,  ///< RSI (period). 0..100 + 30/70 가이드선
@@ -142,6 +143,7 @@ typedef enum TceDrawingKind {
     TCE_DRAW_FIB_RETRACEMENT    = 3,  ///< 두 점 사이 0/0.236/0.382/0.5/0.618/0.786/1.0 가로선
     TCE_DRAW_MEASURE            = 4,  ///< 두 점 사이 가격 차이 + % 라벨 박스
     TCE_DRAW_RECTANGLE          = 5,  ///< 두 점 대각선 사각형 (외곽선 + 반투명 채움)
+    TCE_DRAW_FIB_EXTENSION      = 6,  ///< 두 점 너머 1.0/1.272/1.382/1.618/2.0/2.618 가로선 (추세 연장)
 } TceDrawingKind;
 
 /// 텍스트 라벨의 anchor (정렬 기준). wrapper는 픽셀 좌표 + anchor를 보고 그대로 .position()으로 그림.

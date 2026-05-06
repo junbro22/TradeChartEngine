@@ -4,6 +4,7 @@ extern int test_series();
 extern int test_indicator();
 extern int test_viewport();
 extern int test_frame();
+extern int test_perf();
 
 int main() {
     int failed = 0;
@@ -11,6 +12,7 @@ int main() {
     failed += test_indicator();
     failed += test_viewport();
     failed += test_frame();
+    failed += test_perf();
     if (failed == 0) {
         std::printf("[OK] all tests passed\n");
         return 0;

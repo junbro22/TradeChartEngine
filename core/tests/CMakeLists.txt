@@ -7,6 +7,7 @@ add_executable(tce_tests
     test_indicator.cpp
     test_viewport.cpp
     test_frame.cpp
+    test_perf.cpp
 )
 
 target_link_libraries(tce_tests PRIVATE tce)

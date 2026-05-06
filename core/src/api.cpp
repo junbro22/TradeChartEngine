@@ -23,7 +23,7 @@ void tce_destroy(TceContext* ctx) {
 }
 
 const char* tce_version(void) {
-    return "0.10.0";
+    return "0.11.0";
 }
 
 void tce_set_history(TceContext* ctx, const TceCandle* candles, size_t count) {
@@ -291,6 +291,19 @@ void tce_add_zigzag(TceContext* ctx, double deviationPct, TceColor color) {
     if (!ctx) return;
     ctx->chart.addOverlay(TCE_IND_ZIGZAG, 0,
                           deviationPct > 0 ? deviationPct : 5.0, color);
+}
+
+void tce_add_volume_profile(TceContext* ctx, int bins, double widthRatio,
+                             TceColor barColor, TceColor pocColor) {
+    if (!ctx) return;
+    // bins clamp: [2, 256] — 비합리적 큰 값으로 매 프레임 거대 vector 할당 방지.
+    if (bins < 2)   bins = 24;
+    if (bins > 256) bins = 256;
+    // OverlaySpec 매핑: period=bins, param=widthRatio. color/color2 = bar/poc.
+    ctx->chart.addOverlay(TCE_IND_VOLUME_PROFILE,
+                          bins,
+                          (widthRatio > 0 && widthRatio < 1) ? widthRatio : 0.20,
+                          barColor, pocColor);
 }
 
 void tce_add_rsi(TceContext* ctx, int period, TceColor color) {

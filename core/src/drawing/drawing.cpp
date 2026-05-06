@@ -56,7 +56,7 @@ int DrawingStore::addImported(TceDrawingKind kind, TceColor color,
     // kind 범위 검증 (signed cast — enum이 unsigned면 음수 비교가 항상 false라 fallback 필요)
     const int k = static_cast<int>(kind);
     if (k < static_cast<int>(TCE_DRAW_TRENDLINE) ||
-        k > static_cast<int>(TCE_DRAW_RECTANGLE)) return 0;
+        k > static_cast<int>(TCE_DRAW_FIB_EXTENSION)) return 0;
     // point_count 검증 — kind에 따라 1 또는 2
     const bool onePoint = (kind == TCE_DRAW_HORIZONTAL || kind == TCE_DRAW_VERTICAL);
     const size_t expected = onePoint ? 1 : 2;

@@ -165,6 +165,28 @@ void DrawingRenderer::build(const Series& series,
             }
             break;
         }
+        case TCE_DRAW_FIB_EXTENSION: {
+            if (d.points.size() < 2) break;
+            double p1 = d.points[0].price, p2 = d.points[1].price;
+            // p1=시작(0), p2=100% 기준으로 100%/127.2%/138.2%/161.8%/200%/261.8% 가로선
+            const double levels[] = {1.0, 1.272, 1.382, 1.618, 2.0, 2.618};
+            for (double lv : levels) {
+                double price = p1 + (p2 - p1) * lv;
+                float y = yForPrice(layout, price);
+                if (y < plotT || y > plotB) continue;
+                TceColor c = d.color;
+                c.a *= (lv == 1.0) ? 1.0f : 0.6f;
+                emitLine(vL, iL, plotL, y, plotR, y, c);
+                char buf[24];
+                std::snprintf(buf, sizeof(buf), "%.1f%%  %s",
+                              lv * 100.0, fmtPriceShort(price).c_str());
+                float lx = layout.priceAxis.x + layout.priceAxis.w * 0.5f;
+                labelOut.add(std::string(buf), lx, y,
+                             TCE_ANCHOR_CENTER_CENTER, TCE_LABEL_PRICE_AXIS,
+                             c, {0.13f, 0.16f, 0.20f, 0.95f});
+            }
+            break;
+        }
         case TCE_DRAW_MEASURE: {
             if (d.points.size() < 2) break;
             float x1 = xForTimestamp(series, vp, layout, d.points[0].timestamp);

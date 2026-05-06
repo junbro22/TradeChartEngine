@@ -540,6 +540,78 @@ void FrameBuilder::build(const Series& series,
             emitPolyline(vLine, iLine, k.lower,  from, to, slot, priceY, ov.color2);
             break;
         }
+        case TCE_IND_VOLUME_PROFILE: {
+            // Renko 모드는 미지원 (brick 시리즈가 시간 무관이라 volume 매핑이 의미 없음)
+            if (cfg.seriesType == TCE_SERIES_RENKO) break;
+            const int bins = ov.period > 1 ? ov.period : 24;
+            const double wr = (ov.param > 0 && ov.param < 1) ? ov.param : 0.20;
+
+            // 가시 가격 범위 — frame_builder 흡수 후 priceY 사용 (raw min/max보다 padded)
+            // 메인 패널 plot 좌표
+            const float plotX = 0.0f;          // mainPanel x 시작
+            const float plotW2 = plotW;
+            const float plotR  = plotX + plotW2;
+            const float profL  = plotR - plotW2 * static_cast<float>(wr);
+
+            // bin 누적 (volume 합산)
+            std::vector<double> volPerBin(bins, 0.0);
+            for (size_t i = from; i < to && i < cs.size(); ++i) {
+                // 캔들의 typical price를 bin에 누적 — 정밀하려면 OHLC 분배도 가능하나 근사로 충분
+                double tp = (cs[i].high + cs[i].low + cs[i].close) / 3.0;
+                double nv = priceY.normalize(tp);
+                if (priceY.maxP <= priceY.minP) continue;
+                double t = (nv - priceY.minP) / (priceY.maxP - priceY.minP);
+                int bi = static_cast<int>(std::floor(t * bins));
+                if (bi < 0) bi = 0; if (bi >= bins) bi = bins - 1;
+                volPerBin[bi] += cs[i].volume;
+            }
+            double maxVol = 0;
+            int pocBin = 0;
+            double totalVol = 0;
+            for (int b = 0; b < bins; ++b) {
+                if (volPerBin[b] > maxVol) { maxVol = volPerBin[b]; pocBin = b; }
+                totalVol += volPerBin[b];
+            }
+            if (maxVol <= 0 || totalVol <= 0) break;
+
+            // 막대 그리기 (alpha 0.30 강제)
+            TceColor barCol = ov.color; barCol.a = 0.30f;
+            const float binH = (priceY.bottom - priceY.top) / static_cast<float>(bins);
+            for (int b = 0; b < bins; ++b) {
+                if (volPerBin[b] <= 0) continue;
+                double w = volPerBin[b] / maxVol;
+                float yTop = priceY.bottom - static_cast<float>(b + 1) * binH;
+                float yBot = priceY.bottom - static_cast<float>(b) * binH;
+                float xR = plotR;
+                float xL = plotR - (plotR - profL) * static_cast<float>(w);
+                emitRect(vTri, iTri, xL, yTop + 0.5f, xR, yBot - 0.5f, barCol);
+            }
+
+            // POC 가로선 (가장 진한)
+            TceColor pocCol = ov.color2;
+            float pocY = priceY.bottom - (static_cast<float>(pocBin) + 0.5f) * binH;
+            emitLine(vLine, iLine, profL, pocY, plotR, pocY, pocCol);
+
+            // VAH/VAL — POC bin부터 위/아래로 확장하며 누적 70% 도달 시점 양 끝 bin
+            double cum = volPerBin[pocBin];
+            int vah = pocBin, val = pocBin;
+            const double target = totalVol * 0.70;
+            while (cum < target && (vah < bins - 1 || val > 0)) {
+                double upVol = (vah < bins - 1) ? volPerBin[vah + 1] : -1;
+                double dnVol = (val > 0) ? volPerBin[val - 1] : -1;
+                if (upVol >= dnVol && vah < bins - 1) {
+                    ++vah; cum += volPerBin[vah];
+                } else if (val > 0) {
+                    --val; cum += volPerBin[val];
+                } else break;
+            }
+            TceColor vaCol = pocCol; vaCol.a *= 0.5f;
+            float vahY = priceY.bottom - (static_cast<float>(vah + 1)) * binH;
+            float valY = priceY.bottom - (static_cast<float>(val)) * binH;
+            emitLine(vLine, iLine, profL, vahY, plotR, vahY, vaCol);
+            emitLine(vLine, iLine, profL, valY, plotR, valY, vaCol);
+            break;
+        }
         case TCE_IND_ZIGZAG: {
             // sparse swing point들을 직선 연결 — viewport [from, to) 양 끝의 segment가 끊기지 않도록
             // from 이전 마지막 swing 1개와 to 이후 첫 swing 1개를 확장 흡수.

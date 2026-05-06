@@ -195,6 +195,37 @@ int test_indicator() {
         for (const auto& v : zz2) if (v) ++swingCount;
         // 시작 100, swing 110, 95, 115, 잠정 90 — 5개 정도 기대
         EXPECT(swingCount >= 4);
+
+        // 시작점 보정 검증 — 첫 캔들 close=100인데 low=80이면 시작 swing이 80이어야
+        tce::Series ext;
+        TceCandle ec[4];
+        ec[0] = {0, 100, 105,  80, 100, 1.0};   // close 100, 단 low 80
+        ec[1] = {1, 100, 105,  80, 100, 1.0};
+        ec[2] = {2, 100, 105,  80, 100, 1.0};
+        ec[3] = {3, 110, 120, 110, 120, 1.0};   // 80 → 120 = +50% 충분히 trigger
+        ext.setHistory(ec, 4);
+        auto zz3 = tce::zigzag(ext, 5.0);
+        // 시작 swing은 idx 0/1/2 중 하나에서 80이어야 함 (close=100 아님)
+        bool foundLow = false;
+        for (size_t i = 0; i < 3; ++i) {
+            if (zz3[i] && std::fabs(*zz3[i] - 80.0) < 1e-9) { foundLow = true; break; }
+        }
+        EXPECT(foundLow);
+
+        // 하락 방향 — 첫 캔들 close=100인데 high=120이면 시작 swing이 120
+        tce::Series dn;
+        TceCandle dc[4];
+        dc[0] = {0, 100, 120, 100, 100, 1.0};
+        dc[1] = {1, 100, 120, 100, 100, 1.0};
+        dc[2] = {2, 100, 120, 100, 100, 1.0};
+        dc[3] = {3,  80,  85,  60,  60, 1.0};  // 120 → 60 = -50% trigger
+        dn.setHistory(dc, 4);
+        auto zz4 = tce::zigzag(dn, 5.0);
+        bool foundHigh = false;
+        for (size_t i = 0; i < 3; ++i) {
+            if (zz4[i] && std::fabs(*zz4[i] - 120.0) < 1e-9) { foundHigh = true; break; }
+        }
+        EXPECT(foundHigh);
     }
 
     return failed;

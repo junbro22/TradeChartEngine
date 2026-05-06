@@ -275,7 +275,8 @@ int Chart::beginDrawing(TceDrawingKind kind, float screenX, float screenY, TceCo
     drawings_.addPoint(id, ts, px);
     // 2점 도구는 시작 시 두 번째 점도 같은 위치로 미리 추가
     if (kind == TCE_DRAW_TRENDLINE   || kind == TCE_DRAW_RECTANGLE
-     || kind == TCE_DRAW_FIB_RETRACEMENT || kind == TCE_DRAW_MEASURE) {
+     || kind == TCE_DRAW_FIB_RETRACEMENT || kind == TCE_DRAW_MEASURE
+     || kind == TCE_DRAW_FIB_EXTENSION) {
         drawings_.addPoint(id, ts, px);
     }
     return id;
