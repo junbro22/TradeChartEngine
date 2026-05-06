@@ -8,6 +8,7 @@
 #include "indicator/bollinger.h"
 #include "indicator/donchian.h"
 #include "indicator/keltner.h"
+#include "indicator/zigzag.h"
 #include "indicator/stochastic.h"
 #include "indicator/atr.h"
 #include "indicator/ichimoku.h"
@@ -405,8 +406,14 @@ void FrameBuilder::build(const Series& series,
         }
         case TCE_IND_VWAP: {
             // VWAP은 보통 가격 봉 안에 들지만 일중 누적이 양 끝으로 빠지는 시점에서 안전 흡수.
-            auto v = vwap(iSeries, cfg.sessionOffsetSeconds);
-            absorbRange(v);
+            // param > 0이면 numStdev 밴드 — upper/lower도 흡수.
+            if (ov.param > 0) {
+                auto vb = vwapBands(iSeries, cfg.sessionOffsetSeconds, ov.param);
+                absorbRange(vb.upper); absorbRange(vb.lower);
+            } else {
+                auto v = vwap(iSeries, cfg.sessionOffsetSeconds);
+                absorbRange(v);
+            }
             break;
         }
         default: break;
@@ -533,6 +540,41 @@ void FrameBuilder::build(const Series& series,
             emitPolyline(vLine, iLine, k.lower,  from, to, slot, priceY, ov.color2);
             break;
         }
+        case TCE_IND_ZIGZAG: {
+            // sparse swing point들을 직선 연결 — viewport [from, to) 양 끝의 segment가 끊기지 않도록
+            // from 이전 마지막 swing 1개와 to 이후 첫 swing 1개를 확장 흡수.
+            const double dev = ov.param > 0 ? ov.param : 5.0;
+            auto zz = zigzag(iSeries, dev);
+            std::optional<float> px, py;
+            // from 이전 마지막 swing 검색 (있으면 그 점부터 line 시작)
+            for (size_t k = from; k > 0; --k) {
+                size_t i = k - 1;
+                if (i < zz.size() && zz[i]) {
+                    float x = (static_cast<float>(i) - static_cast<float>(from) + 0.5f) * slot;
+                    px = x; py = priceY.yFor(*zz[i]);
+                    break;
+                }
+            }
+            for (size_t i = from; i < to && i < zz.size(); ++i) {
+                if (!zz[i]) continue;
+                float x = (static_cast<float>(i - from) + 0.5f) * slot;
+                float y = priceY.yFor(*zz[i]);
+                if (px && py) emitLine(vLine, iLine, *px, *py, x, y, ov.color);
+                px = x; py = y;
+            }
+            // to 이후 첫 swing 검색 (있으면 마지막 viewport swing → 그 점까지 line)
+            if (px && py) {
+                for (size_t i = to; i < zz.size(); ++i) {
+                    if (zz[i]) {
+                        float x = (static_cast<float>(i) - static_cast<float>(from) + 0.5f) * slot;
+                        float y = priceY.yFor(*zz[i]);
+                        emitLine(vLine, iLine, *px, *py, x, y, ov.color);
+                        break;
+                    }
+                }
+            }
+            break;
+        }
         case TCE_IND_ICHIMOKU: {
             const int tenkan = ov.period > 0 ? ov.period : 9;
             const int kijun  = ov.p2     > 0 ? ov.p2     : 26;
@@ -590,9 +632,16 @@ void FrameBuilder::build(const Series& series,
             break;
         }
         case TCE_IND_VWAP: {
-            emitPolyline(vLine, iLine,
-                         vwap(iSeries, cfg.sessionOffsetSeconds),
-                         from, to, slot, priceY, ov.color);
+            if (ov.param > 0) {
+                auto vb = vwapBands(iSeries, cfg.sessionOffsetSeconds, ov.param);
+                emitPolyline(vLine, iLine, vb.middle, from, to, slot, priceY, ov.color);
+                emitPolyline(vLine, iLine, vb.upper,  from, to, slot, priceY, ov.color2);
+                emitPolyline(vLine, iLine, vb.lower,  from, to, slot, priceY, ov.color2);
+            } else {
+                emitPolyline(vLine, iLine,
+                             vwap(iSeries, cfg.sessionOffsetSeconds),
+                             from, to, slot, priceY, ov.color);
+            }
             break;
         }
         case TCE_IND_PIVOT_STANDARD:

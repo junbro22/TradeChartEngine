@@ -28,6 +28,12 @@ public:
     void remove(int id);
     void clear();
 
+    /// 직렬화용 — 외부 스토리지로 export 후 import 시 사용. 새 id 부여.
+    /// kind/point_count 검증: kind는 [0,5] 범위, point_count는 1(horizontal/vertical)
+    /// 또는 2(나머지). 위반 시 0 반환(=invalid).
+    int  addImported(TceDrawingKind kind, TceColor color,
+                     const DrawingPoint* points, size_t point_count);
+
     const std::vector<Drawing>& all() const { return items_; }
 
 private:

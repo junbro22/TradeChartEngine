@@ -119,6 +119,23 @@ public:
     // 드로잉 통째 이동 (모든 점이 동일 dx/dy만큼)
     void translateDrawing(int id, float dxPx, float dyPx);
 
+    // 직렬화
+    size_t drawingCount() const { return drawings_.all().size(); }
+    bool   exportDrawing(size_t idx, TceDrawingKind& outKind, TceColor& outColor,
+                         std::vector<DrawingPoint>& outPoints, int& outId) const {
+        const auto& v = drawings_.all();
+        if (idx >= v.size()) return false;
+        outId = v[idx].id;
+        outKind = v[idx].kind;
+        outColor = v[idx].color;
+        outPoints = v[idx].points;
+        return true;
+    }
+    int    importDrawing(TceDrawingKind kind, TceColor color,
+                         const DrawingPoint* pts, size_t n) {
+        return drawings_.addImported(kind, color, pts, n);
+    }
+
     // 매수/매도 마커
     int  addTradeMarker(double timestamp, double price, bool isBuy, double quantity);
     void removeTradeMarker(int id);
@@ -150,6 +167,7 @@ public:
     bool queryIchimoku(size_t idx, double& tenkan, double& kijun,
                        double& senkouA, double& senkouB, double& chikou) const;
     bool querySuperTrend(size_t idx, double& line, int& direction) const;
+    bool queryVWAPBands(size_t idx, double& middle, double& upper, double& lower) const;
 
 private:
     Series                       series_;

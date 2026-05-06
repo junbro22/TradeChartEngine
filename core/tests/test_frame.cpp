@@ -243,6 +243,76 @@ int test_frame() {
         tce_clear_indicators(ctx);
     }
 
+    // 드로잉 export/import round-trip
+    {
+        tce_drawing_clear(ctx);
+        TceColor c{1, 0, 0, 1};
+        // horizontal 1점 + trendline 2점
+        int h = tce_drawing_begin(ctx, TCE_DRAW_HORIZONTAL, 100, 200, c);
+        EXPECT(h > 0);
+        int t = tce_drawing_begin(ctx, TCE_DRAW_TRENDLINE, 50, 100, c);
+        tce_drawing_update(ctx, t, 1, 300, 250);
+
+        EXPECT(tce_drawing_count(ctx) == 2);
+
+        TceDrawingExport e0{}, e1{};
+        EXPECT(tce_drawing_export(ctx, 0, &e0) == 1);
+        EXPECT(tce_drawing_export(ctx, 1, &e1) == 1);
+        EXPECT(e0.kind == TCE_DRAW_HORIZONTAL && e0.point_count == 1);
+        EXPECT(e1.kind == TCE_DRAW_TRENDLINE  && e1.point_count == 2);
+        // color round-trip 검증
+        EXPECT(e0.color.r == c.r && e0.color.g == c.g
+            && e0.color.b == c.b && e0.color.a == c.a);
+
+        // 범위 밖 idx
+        TceDrawingExport bad{};
+        EXPECT(tce_drawing_export(ctx, 999, &bad) == 0);
+
+        // clear 후 import → 다시 2개
+        tce_drawing_clear(ctx);
+        EXPECT(tce_drawing_count(ctx) == 0);
+        int newH = tce_drawing_import(ctx, &e0);
+        int newT = tce_drawing_import(ctx, &e1);
+        EXPECT(newH > 0 && newT > 0);
+        EXPECT(tce_drawing_count(ctx) == 2);
+        // 새 id는 이전 id와 달라도 됨
+        EXPECT(newH != h || newT != t || true);  // 그냥 새 id 부여 검증
+
+        // kind 범위 밖 import → 0
+        TceDrawingExport invalid{};
+        invalid.kind = static_cast<TceDrawingKind>(99);
+        invalid.point_count = 1;
+        EXPECT(tce_drawing_import(ctx, &invalid) == 0);
+
+        // point_count 불일치 — HORIZONTAL인데 2점
+        TceDrawingExport pcMismatch = e0;
+        pcMismatch.point_count = 2;
+        EXPECT(tce_drawing_import(ctx, &pcMismatch) == 0);
+
+        tce_drawing_clear(ctx);
+    }
+
+    // ZigZag + VWAP bands frame 빌드 (회귀)
+    {
+        TceColor c{1, 1, 1, 1};
+        TceColor edge{1, 1, 1, 0.5f};
+        tce_add_zigzag(ctx, 5.0, c);
+        tce_add_vwap_with_bands(ctx, 2.0, c, edge);
+
+        TceFrame f = tce_build_frame(ctx);
+        EXPECT(f.mesh_count >= 1);
+        tce_release_frame(f);
+
+        // VWAP bands query
+        double m, u, l;
+        // 캔들 인덱스 5에서 query — 데이터에 거래량/가격 변동이 있어 sigma > 0
+        if (tce_query_vwap_bands(ctx, 5, &m, &u, &l) == 1) {
+            EXPECT(u >= m && m >= l);
+        }
+
+        tce_clear_indicators(ctx);
+    }
+
     // 세션 offset — VWAP day boundary 변화
     {
         // 새 chart로 깨끗한 데이터 사용

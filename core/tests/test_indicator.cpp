@@ -3,6 +3,7 @@
 #include "indicator/ema.h"
 #include "indicator/donchian.h"
 #include "indicator/keltner.h"
+#include "indicator/zigzag.h"
 #include "indicator/atr.h"
 #include "indicator/vwap.h"
 #include "indicator/pivot.h"
@@ -134,6 +135,66 @@ int test_indicator() {
         EXPECT(!piv0.p[0].has_value());
         // 5번째부터(day 1) 값 있어야
         EXPECT(piv0.p[4].has_value() || piv0.p[5].has_value());
+    }
+
+    // VWAP bands — middle == vwap, upper > middle > lower
+    {
+        tce::Series vbs;
+        TceCandle bc[8];
+        for (int i = 0; i < 8; ++i) {
+            // 가격 변동 추가하여 sigma > 0 보장
+            double tp = 100.0 + (i % 2 == 0 ? +5 : -3);
+            bc[i] = {(double)(i * 3600), tp, tp + 1, tp - 1, tp, 1000.0};
+        }
+        vbs.setHistory(bc, 8);
+        auto baseline = tce::vwap(vbs, 0);
+        auto vb = tce::vwapBands(vbs, 0, 2.0);
+        // middle은 plain vwap과 동일해야
+        for (size_t i = 0; i < 8; ++i) {
+            if (baseline[i] && vb.middle[i]) {
+                EXPECT(std::fabs(*baseline[i] - *vb.middle[i]) < 1e-9);
+            }
+        }
+        // 마지막 캔들 sigma > 0이라 upper > middle > lower
+        EXPECT(vb.upper[7].has_value() && vb.middle[7].has_value() && vb.lower[7].has_value());
+        EXPECT(*vb.upper[7] > *vb.middle[7]);
+        EXPECT(*vb.middle[7] > *vb.lower[7]);
+
+        // numStdev<=0 → upper/lower nullopt
+        auto vb0 = tce::vwapBands(vbs, 0, 0);
+        EXPECT(!vb0.upper[7].has_value());
+        EXPECT(vb0.middle[7].has_value());
+    }
+
+    // ZigZag — 단조 증가 시리즈는 swing 1개만 (시작점) 있어야
+    {
+        tce::Series zs;
+        TceCandle zc[10];
+        for (int i = 0; i < 10; ++i) {
+            double p = 100.0 + i;
+            zc[i] = {(double)i, p, p, p, p, 1.0};
+        }
+        zs.setHistory(zc, 10);
+        auto zz = tce::zigzag(zs, 5.0);  // 5% deviation 필요한데 단조 증가 (10% 까지)
+        size_t count = 0;
+        for (const auto& v : zz) if (v) ++count;
+        EXPECT(count >= 1);  // 시작 swing 1개 + 마지막 잠정 swing 1개
+
+        // M자 형태: 100 → 110 → 95 → 115 → 90 (deviation 충분)
+        tce::Series ms;
+        TceCandle mc[5] = {
+            {0, 100, 100, 100, 100, 1.0},
+            {1, 110, 110, 110, 110, 1.0},
+            {2,  95,  95,  95,  95, 1.0},
+            {3, 115, 115, 115, 115, 1.0},
+            {4,  90,  90,  90,  90, 1.0},
+        };
+        ms.setHistory(mc, 5);
+        auto zz2 = tce::zigzag(ms, 5.0);
+        size_t swingCount = 0;
+        for (const auto& v : zz2) if (v) ++swingCount;
+        // 시작 100, swing 110, 95, 115, 잠정 90 — 5개 정도 기대
+        EXPECT(swingCount >= 4);
     }
 
     return failed;

@@ -51,4 +51,27 @@ void DrawingStore::clear() {
     items_.clear();
 }
 
+int DrawingStore::addImported(TceDrawingKind kind, TceColor color,
+                              const DrawingPoint* points, size_t point_count) {
+    // kind 범위 검증 (signed cast — enum이 unsigned면 음수 비교가 항상 false라 fallback 필요)
+    const int k = static_cast<int>(kind);
+    if (k < static_cast<int>(TCE_DRAW_TRENDLINE) ||
+        k > static_cast<int>(TCE_DRAW_RECTANGLE)) return 0;
+    // point_count 검증 — kind에 따라 1 또는 2
+    const bool onePoint = (kind == TCE_DRAW_HORIZONTAL || kind == TCE_DRAW_VERTICAL);
+    const size_t expected = onePoint ? 1 : 2;
+    if (point_count != expected || !points) return 0;
+
+    Drawing d{};
+    d.id = nextId_++;
+    d.kind = kind;
+    d.color = color;
+    d.points.reserve(point_count);
+    for (size_t i = 0; i < point_count; ++i) {
+        d.points.push_back(points[i]);
+    }
+    items_.push_back(std::move(d));
+    return items_.back().id;
+}
+
 } // namespace tce

@@ -159,6 +159,12 @@ void tce_add_donchian(TceContext* ctx, int period, TceColor color, TceColor edge
 void tce_add_keltner(TceContext* ctx, int emaPeriod, int atrPeriod, double multiplier,
                      TceColor color, TceColor edgeColor);
 
+/// ZigZag — deviationPct(%) 이상의 swing high/low 직선 연결.
+/// 표준값 deviationPct=5.0 (5%). repaint 주의: 마지막 swing은 잠정값이며
+/// 새 캔들이 들어와 더 큰 극값이 발견되면 마지막 swing 위치가 갱신된다 — host는
+/// ZigZag 기반 알림 신뢰성을 검증한 후 사용할 것.
+void tce_add_zigzag(TceContext* ctx, double deviationPct, TceColor color);
+
 /// 일목균형표 — 전환선/기준선/선행스팬A·B/후행스팬 + 구름.
 /// 표준값: tenkan=9, kijun=26, senkouB=52, displacement=26.
 /// 선행스팬/후행스팬 색은 엔진 기본값(반투명)을 사용 — wrapper에서 주관 색 설정 불필요.
@@ -174,9 +180,16 @@ void tce_add_psar(TceContext* ctx, double step, double maxStep, TceColor color);
 void tce_add_supertrend(TceContext* ctx, int period, double multiplier, TceColor color);
 
 /// VWAP — 거래량 가중 평균가. session(일별)으로 자동 reset.
-/// 일별 경계는 host의 local timezone(localtime) 기준 — KST 사용 시 09:00가 아닌 00:00 reset.
-/// 정확한 장 세션 reset이 필요하면 host가 timestamp를 미리 KST 09:00 정렬 후 push 권장.
+/// 일별 경계는 `tce_set_session_start_utc` / `tce_set_session_offset_seconds` 적용 후
+/// floor((ts + offset) / 86400) 기준 (default offset=0 → UTC 자정).
 void tce_add_vwap(TceContext* ctx, TceColor color);
+
+/// VWAP + ±numStdev × sigma 밴드. numStdev<=0이면 그냥 VWAP과 동일.
+/// 같은 day session 내 가중분산으로 sigma 계산. 밴드 흡수 priceY 자동.
+/// @param numStdev   밴드 폭 (1.0 / 2.0 / 1.5 등 자유). 표준은 2.0.
+/// @param color      VWAP 본선 색
+/// @param bandColor  ±sigma 라인 색 (보통 alpha 낮춰 옅게)
+void tce_add_vwap_with_bands(TceContext* ctx, double numStdev, TceColor color, TceColor bandColor);
 
 /// Pivot Points — 일봉 자동 계산. P / R1·R2·R3 / S1·S2·S3 = 7개 가로선.
 /// 일별 경계는 host local timezone 기준. 한국장(09:00 KST 시작)은 host가 timestamp 정렬 후 push.
@@ -319,6 +332,11 @@ int tce_query_ichimoku(const TceContext* ctx, size_t candle_index,
 int tce_query_supertrend(const TceContext* ctx, size_t candle_index,
                          double* line, int* direction);
 
+/// VWAP bands query — middle/upper/lower 3채널. VWAP이 numStdev=0(밴드 없음)으로 등록되었으면
+/// upper/lower는 0으로 채워지고 1을 반환하지 않음(밴드 미등록). middle은 항상 valid.
+int tce_query_vwap_bands(const TceContext* ctx, size_t candle_index,
+                         double* middle, double* upper, double* lower);
+
 /* ============================================================
  * 크로스헤어 (마우스 hover / 터치 & 홀드)
  * ============================================================ */
@@ -402,6 +420,22 @@ int  tce_drawing_hit_test(const TceContext* ctx, float screen_x, float screen_y)
 /// 드로잉 통째 평행이동 (dx/dy 픽셀). 이미 도메인 좌표(timestamp/price)로 보관되어 있어
 /// 화면 px 입력은 도메인 단위로 자동 변환 후 누적.
 void tce_drawing_translate(TceContext* ctx, int id, float dx_px, float dy_px);
+
+/* ── 직렬화 export/import ─────────────────────────────────────
+ * host가 사용자 그림을 영속 저장(JSON/binary)하고 다음 세션에 복원.
+ * 도메인 좌표 기반이라 series 변경/리로드 시에도 안전.
+ * ──────────────────────────────────────────────────────────── */
+
+/// 등록된 드로잉 개수.
+size_t tce_drawing_count(const TceContext* ctx);
+
+/// idx 위치의 드로잉을 *out에 export. 1=ok, 0=invalid(idx 범위 밖/NULL).
+/// 등록 순서 보존 — host가 같은 순서로 import하면 hit-test 우선순위 동일.
+int    tce_drawing_export(const TceContext* ctx, size_t idx, TceDrawingExport* out);
+
+/// import — 새 id 부여 후 반환. 0=invalid(kind 범위 밖/point_count 불일치/NULL).
+/// HORIZONTAL/VERTICAL은 point_count=1, 나머지는 2 필수.
+int    tce_drawing_import(TceContext* ctx, const TceDrawingExport* in);
 
 /* ============================================================
  * 매수/매도 마커

@@ -15,11 +15,15 @@ TceContext* tce_create(void) {
 }
 
 void tce_destroy(TceContext* ctx) {
+    if (!ctx) return;
+    // 콜백 user 포인터가 dangling되지 않도록 명시 nullify (방어 코드).
+    // host가 이미 set_alert_callback(NULL)을 호출했어도 안전 — 이중 nullify는 무해.
+    ctx->chart.setAlertCallback(nullptr, nullptr);
     delete ctx;
 }
 
 const char* tce_version(void) {
-    return "0.9.0";
+    return "0.10.0";
 }
 
 void tce_set_history(TceContext* ctx, const TceCandle* candles, size_t count) {
@@ -169,6 +173,15 @@ int tce_query_supertrend(const TceContext* ctx, size_t idx,
     return 1;
 }
 
+int tce_query_vwap_bands(const TceContext* ctx, size_t idx,
+                         double* middle, double* upper, double* lower) {
+    if (!ctx || !middle || !upper || !lower) return 0;
+    double m, u, l;
+    if (!ctx->chart.queryVWAPBands(idx, m, u, l)) return 0;
+    *middle = m; *upper = u; *lower = l;
+    return 1;
+}
+
 void tce_set_series_type(TceContext* ctx, TceSeriesType type) {
     if (ctx) ctx->chart.setSeriesType(type);
 }
@@ -274,6 +287,12 @@ void tce_add_keltner(TceContext* ctx, int emaPeriod, int atrPeriod, double multi
                             color, edgeColor);
 }
 
+void tce_add_zigzag(TceContext* ctx, double deviationPct, TceColor color) {
+    if (!ctx) return;
+    ctx->chart.addOverlay(TCE_IND_ZIGZAG, 0,
+                          deviationPct > 0 ? deviationPct : 5.0, color);
+}
+
 void tce_add_rsi(TceContext* ctx, int period, TceColor color) {
     if (!ctx) return;
     ctx->chart.addSubpanel(TCE_IND_RSI, period, 0, 0, color);
@@ -325,6 +344,12 @@ void tce_add_supertrend(TceContext* ctx, int period, double multiplier, TceColor
 void tce_add_vwap(TceContext* ctx, TceColor color) {
     if (!ctx) return;
     ctx->chart.addOverlay(TCE_IND_VWAP, 0, 0.0, color);
+}
+
+void tce_add_vwap_with_bands(TceContext* ctx, double numStdev, TceColor color, TceColor bandColor) {
+    if (!ctx) return;
+    // VWAP overlay spec의 param에 numStdev 보관. 0이면 plain VWAP과 동일.
+    ctx->chart.addOverlay(TCE_IND_VWAP, 0, numStdev > 0 ? numStdev : 0.0, color, bandColor);
 }
 
 void tce_add_dmi(TceContext* ctx, int period,
@@ -394,6 +419,40 @@ int tce_drawing_hit_test(const TceContext* ctx, float x, float y) {
 
 void tce_drawing_translate(TceContext* ctx, int id, float dx, float dy) {
     if (ctx) ctx->chart.translateDrawing(id, dx, dy);
+}
+
+size_t tce_drawing_count(const TceContext* ctx) {
+    return ctx ? ctx->chart.drawingCount() : 0;
+}
+
+int tce_drawing_export(const TceContext* ctx, size_t idx, TceDrawingExport* out) {
+    if (!ctx || !out) return 0;
+    TceDrawingKind kind;
+    TceColor color;
+    std::vector<tce::DrawingPoint> pts;
+    int id = 0;
+    if (!ctx->chart.exportDrawing(idx, kind, color, pts, id)) return 0;
+    out->id = id;
+    out->kind = kind;
+    out->color = color;
+    out->point_count = static_cast<int>(std::min<size_t>(pts.size(), 2));
+    for (int i = 0; i < 2; ++i) {
+        out->ts[i]    = (i < out->point_count) ? pts[i].timestamp : 0.0;
+        out->price[i] = (i < out->point_count) ? pts[i].price     : 0.0;
+    }
+    return 1;
+}
+
+int tce_drawing_import(TceContext* ctx, const TceDrawingExport* in) {
+    if (!ctx || !in) return 0;
+    if (in->point_count < 1 || in->point_count > 2) return 0;
+    tce::DrawingPoint pts[2];
+    for (int i = 0; i < in->point_count; ++i) {
+        pts[i].timestamp = in->ts[i];
+        pts[i].price     = in->price[i];
+    }
+    return ctx->chart.importDrawing(in->kind, in->color, pts,
+                                     static_cast<size_t>(in->point_count));
 }
 
 int tce_add_trade_marker(TceContext* ctx, double ts, double price, int isBuy, double qty) {

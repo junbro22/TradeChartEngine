@@ -120,6 +120,7 @@ typedef enum TceIndicatorKind {
     TCE_IND_PIVOT_CAMARILLA   = 9,    ///< Pivot Points (Camarilla)
     TCE_IND_DONCHIAN          = 10,   ///< Donchian Channels — period 캔들 high.max/low.min/center
     TCE_IND_KELTNER           = 11,   ///< Keltner Channels — EMA(emaP) ± multiplier * ATR(atrP)
+    TCE_IND_ZIGZAG            = 12,   ///< ZigZag — deviationPct% 이상의 swing high/low 직선 연결
 
     /* ── Subpanel (별도 패널) ── */
     TCE_IND_RSI               = 100,  ///< RSI (period). 0..100 + 30/70 가이드선
@@ -223,6 +224,17 @@ typedef struct TceLabels {
     const TceLabel* items;
     size_t          count;
 } TceLabels;
+
+/// 드로잉 직렬화 — host가 사용자 그림을 영속 저장/복원할 때 사용.
+/// 도메인 좌표(timestamp/price)만 보관하므로 차트 series가 달라도 안전.
+typedef struct TceDrawingExport {
+    int            id;             ///< export 시: 엔진 id. import 시: 무시(새 id 부여).
+    TceDrawingKind kind;
+    TceColor       color;
+    int            point_count;    ///< 1(horizontal/vertical) 또는 2(나머지).
+    double         ts[2];          ///< 도메인 timestamp. 미사용 슬롯은 의미 없음.
+    double         price[2];       ///< 도메인 raw price. HORIZONTAL은 price[0]만, VERTICAL은 ts[0]만.
+} TceDrawingExport;
 
 /// 한 프레임의 레이아웃 정보 — wrapper가 텍스트/오버레이 영역 결정에 사용.
 /// `tce_layout()`으로 build_frame 직후 query.

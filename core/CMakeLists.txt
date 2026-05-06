@@ -10,6 +10,7 @@ set(TCE_SOURCES
     src/indicator/bollinger.cpp
     src/indicator/donchian.cpp
     src/indicator/keltner.cpp
+    src/indicator/zigzag.cpp
     src/indicator/stochastic.cpp
     src/indicator/atr.cpp
     src/indicator/ichimoku.cpp

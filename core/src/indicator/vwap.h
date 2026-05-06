@@ -13,4 +13,13 @@ class Series;
 std::vector<std::optional<double>> vwap(const Series& series,
                                          double sessionOffsetSeconds = 0.0);
 
+// VWAP + ±numStdev * sigma 밴드. 같은 day session 내 (price - VWAP)^2 가중평균으로 sigma 계산.
+// numStdev <= 0이면 upper/lower는 모두 nullopt(밴드 없음).
+struct VWAPBandsResult {
+    std::vector<std::optional<double>> middle;  // VWAP 자체
+    std::vector<std::optional<double>> upper;   // VWAP + numStdev * sigma
+    std::vector<std::optional<double>> lower;   // VWAP - numStdev * sigma
+};
+VWAPBandsResult vwapBands(const Series& series, double sessionOffsetSeconds, double numStdev);
+
 } // namespace tce

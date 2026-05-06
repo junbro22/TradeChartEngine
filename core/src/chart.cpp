@@ -644,6 +644,20 @@ bool Chart::querySuperTrend(size_t idx, double& line, int& direction) const {
     return true;
 }
 
+bool Chart::queryVWAPBands(size_t idx, double& middle, double& upper, double& lower) const {
+    if (idx >= series_.size()) return false;
+    const OverlaySpec* spec = nullptr;
+    for (const auto& s : overlays_) {
+        if (s.kind == TCE_IND_VWAP) { spec = &s; break; }
+    }
+    if (!spec || spec->param <= 0) return false;  // 밴드 미등록
+    const Series* iSeries = &series_;
+    auto vb = vwapBands(*iSeries, config_.sessionOffsetSeconds, spec->param);
+    return readOpt(vb.middle, idx, middle)
+        && readOpt(vb.upper,  idx, upper)
+        && readOpt(vb.lower,  idx, lower);
+}
+
 int  Chart::hitTestAlertLine(float screenY, float tolPx) const {
     int best = 0;
     float bestDist = tolPx * tolPx;
