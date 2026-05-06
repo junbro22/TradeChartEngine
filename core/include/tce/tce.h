@@ -108,6 +108,19 @@ void tce_set_renko_brick_size(TceContext* ctx, double size);
 /// 그리드(plot 영역의 가로/세로 보조선) 표시 여부 (1=표시, 0=숨김).
 void tce_set_show_grid(TceContext* ctx, int show);
 
+/// 거래소 세션 시작(UTC 기준) 설정 — VWAP/Pivot의 일별 boundary를 그 시각에 맞춤.
+/// 사용 예:
+///   - KR/JP (KST/JST 09:00 시작 → UTC 00:00):  tce_set_session_start_utc(ctx, 0, 0);  // 또는 호출 생략
+///   - NYSE (09:30 EST → UTC 14:30):            tce_set_session_start_utc(ctx, 14, 30);
+///   - EU CET (09:00 CET → UTC 08:00):          tce_set_session_start_utc(ctx, 8, 0);
+///   - 24시간 (CRYPTO):                          tce_set_session_start_utc(ctx, 0, 0);
+/// DST 전환은 host가 처리(EDT 09:30 = UTC 13:30 → 시간만 다시 set).
+void tce_set_session_start_utc(TceContext* ctx, int hour, int minute);
+
+/// 직접 offset(초)을 지정 — `tce_set_session_start_utc`와 둘 중 하나만 쓰면 됨.
+/// day boundary = floor((timestamp + offset) / 86400).
+void tce_set_session_offset_seconds(TceContext* ctx, double offsetSeconds);
+
 /* ============================================================
  * 지표 — 일반 (Overlay/Subpanel 공용 진입점)
  * ============================================================ */
@@ -138,6 +151,13 @@ void tce_add_bollinger(TceContext* ctx, int period, double stddev, TceColor colo
 /// @param color      중앙선(중간) 색
 /// @param edgeColor  상/하단 채널 색 (보통 alpha 낮춰 옅게)
 void tce_add_donchian(TceContext* ctx, int period, TceColor color, TceColor edgeColor);
+
+/// Keltner Channels — EMA(emaPeriod) ± multiplier * ATR(atrPeriod).
+/// 표준값 emaPeriod=20, atrPeriod=10, multiplier=2.0. BB와 비교/대체로 자주 쓰임.
+/// @param color      중앙선(EMA) 색
+/// @param edgeColor  상/하단 채널 색 (보통 alpha 낮춰 옅게)
+void tce_add_keltner(TceContext* ctx, int emaPeriod, int atrPeriod, double multiplier,
+                     TceColor color, TceColor edgeColor);
 
 /// 일목균형표 — 전환선/기준선/선행스팬A·B/후행스팬 + 구름.
 /// 표준값: tenkan=9, kijun=26, senkouB=52, displacement=26.
@@ -243,6 +263,61 @@ int    tce_index_to_screen_x(const TceContext* ctx, int index, float* out_x);
 double tce_screen_y_to_price(const TceContext* ctx, float screen_y);
 /// raw price → 화면 Y(px). PRICE_LOG/PERCENT 모드에서 자동 변환.
 float  tce_price_to_screen_y(const TceContext* ctx, double price);
+
+/* ============================================================
+ * 지표 값 query — host의 crosshair hover 라벨용
+ *
+ * 정책
+ *   - 단일 출력 지표(SMA/EMA/RSI/CCI/Williams %R/ATR/MFI/OBV/VWAP/SuperTrend)는
+ *     `tce_query_indicator_value`로 통일.
+ *   - 다출력 지표(BB/MACD/Stochastic/DMI/Ichimoku/Donchian/Keltner/Pivot)는 전용 함수.
+ *   - 매칭 정책: (kind, period) 정확 일치한 spec이 등록되어 있어야 1 반환.
+ *     period가 없는 지표(VWAP/OBV/Pivot)는 period 인자 무시.
+ *   - candle_index 범위 밖 / 첫 (period-1)개 등 미정의 위치 → 0 반환, out 미변경.
+ *   - 캐시 없음 — host가 hover 시점에만 호출. build_frame과 같은 데이터로 재계산.
+ * ============================================================ */
+
+/// 단일 출력 지표 값 query. 1=valid, 0=invalid(미등록/index 범위 밖/period 미일치).
+int tce_query_indicator_value(const TceContext* ctx, TceIndicatorKind kind, int period,
+                              size_t candle_index, double* out);
+
+/// Bollinger Bands query — upper/middle/lower 3채널.
+int tce_query_bollinger(const TceContext* ctx, int period, size_t candle_index,
+                        double* upper, double* middle, double* lower);
+
+/// Donchian Channels query — upper/middle/lower 3채널.
+int tce_query_donchian(const TceContext* ctx, int period, size_t candle_index,
+                       double* upper, double* middle, double* lower);
+
+/// Keltner Channels query — upper/middle/lower 3채널.
+int tce_query_keltner(const TceContext* ctx, int emaPeriod, size_t candle_index,
+                      double* upper, double* middle, double* lower);
+
+/// MACD query — line/signal/histogram 3채널.
+int tce_query_macd(const TceContext* ctx, size_t candle_index,
+                   double* line, double* signal, double* histogram);
+
+/// Stochastic query — %K / %D 2채널.
+int tce_query_stochastic(const TceContext* ctx, size_t candle_index,
+                         double* k, double* d);
+
+/// DMI/ADX query — +DI / -DI / ADX 3채널.
+int tce_query_dmi(const TceContext* ctx, int period, size_t candle_index,
+                  double* plusDI, double* minusDI, double* adx);
+
+/// Pivot Points query — kind는 등록된 piv 종류와 같아야 함. 7채널.
+int tce_query_pivot(const TceContext* ctx, TceIndicatorKind kind, size_t candle_index,
+                    double* p, double* r1, double* r2, double* r3,
+                    double* s1, double* s2, double* s3);
+
+/// Ichimoku query — 5채널 (tenkan/kijun/senkouA/senkouB/chikou).
+int tce_query_ichimoku(const TceContext* ctx, size_t candle_index,
+                       double* tenkan, double* kijun,
+                       double* senkouA, double* senkouB, double* chikou);
+
+/// SuperTrend query — line + direction(+1=상승, -1=하락).
+int tce_query_supertrend(const TceContext* ctx, size_t candle_index,
+                         double* line, int* direction);
 
 /* ============================================================
  * 크로스헤어 (마우스 hover / 터치 & 홀드)

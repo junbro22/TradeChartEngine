@@ -7,6 +7,7 @@
 #include "indicator/macd.h"
 #include "indicator/bollinger.h"
 #include "indicator/donchian.h"
+#include "indicator/keltner.h"
 #include "indicator/stochastic.h"
 #include "indicator/atr.h"
 #include "indicator/ichimoku.h"
@@ -321,20 +322,94 @@ void FrameBuilder::build(const Series& series,
         priceY.maxP = priceY.normalize(rawMax);
         if (priceY.minP > priceY.maxP) std::swap(priceY.minP, priceY.maxP);
     }
-    // BB/Donchian이 메인보다 위/아래로 나갈 수 있어 그것까지 포함 (indicator series 기준)
+    // 메인 패널 가시 범위를 위/아래로 벗어날 수 있는 overlay를 모두 흡수.
+    // BB/Donchian/Keltner/Pivot/Ichimoku/SuperTrend/PSAR/VWAP — MA/EMA는 원래 가격 봉 안.
+    // 흡수 시 indicator series 기준 (HA: 원본 OHLC, Renko: brick).
+    auto absorb = [&](const std::optional<double>& v) {
+        if (!v) return;
+        double nv = priceY.normalize(*v);
+        priceY.maxP = std::max(priceY.maxP, nv);
+        priceY.minP = std::min(priceY.minP, nv);
+    };
+    auto absorbRange = [&](const std::vector<std::optional<double>>& s) {
+        for (size_t i = from; i < to && i < s.size(); ++i) absorb(s[i]);
+    };
     for (const auto& ov : overlays) {
-        if (ov.kind == TCE_IND_BOLLINGER) {
+        switch (ov.kind) {
+        case TCE_IND_BOLLINGER: {
             auto bb = bollinger(iSeries, ov.period, ov.param);
-            for (size_t i = from; i < to && i < bb.upper.size(); ++i) {
-                if (bb.upper[i]) priceY.maxP = std::max(priceY.maxP, priceY.normalize(*bb.upper[i]));
-                if (bb.lower[i]) priceY.minP = std::min(priceY.minP, priceY.normalize(*bb.lower[i]));
-            }
-        } else if (ov.kind == TCE_IND_DONCHIAN) {
+            absorbRange(bb.upper); absorbRange(bb.lower);
+            break;
+        }
+        case TCE_IND_DONCHIAN: {
             auto dc = donchian(iSeries, ov.period > 0 ? ov.period : 20);
-            for (size_t i = from; i < to && i < dc.upper.size(); ++i) {
-                if (dc.upper[i]) priceY.maxP = std::max(priceY.maxP, priceY.normalize(*dc.upper[i]));
-                if (dc.lower[i]) priceY.minP = std::min(priceY.minP, priceY.normalize(*dc.lower[i]));
+            absorbRange(dc.upper); absorbRange(dc.lower);
+            break;
+        }
+        case TCE_IND_KELTNER: {
+            const int eP = ov.period > 0 ? ov.period : 20;
+            const int aP = ov.p2     > 0 ? ov.p2     : 10;
+            const double m = ov.param > 0 ? ov.param : 2.0;
+            auto e = ema(iSeries, eP);
+            auto a = atr(iSeries, aP);
+            for (size_t i = from; i < to && i < e.size() && i < a.size(); ++i) {
+                if (e[i] && a[i]) {
+                    double upper = *e[i] + m * (*a[i]);
+                    double lower = *e[i] - m * (*a[i]);
+                    absorb(upper); absorb(lower);
+                }
             }
+            break;
+        }
+        case TCE_IND_ICHIMOKU: {
+            const int tk = ov.period > 0 ? ov.period : 9;
+            const int kj = ov.p2     > 0 ? ov.p2     : 26;
+            const int sB = ov.p3     > 0 ? ov.p3     : 52;
+            const int dp = ov.p4     > 0 ? ov.p4     : 26;
+            auto ic = ichimoku(iSeries, tk, kj, sB, dp);
+            // senkouA/B는 displacement만큼 미래 plot 가능 — 흡수 범위를 displacement까지 확장
+            const size_t ext = std::min(to + static_cast<size_t>(dp), ic.senkouA.size());
+            for (size_t i = from; i < ext; ++i) {
+                if (i < ic.senkouA.size()) absorb(ic.senkouA[i]);
+                if (i < ic.senkouB.size()) absorb(ic.senkouB[i]);
+            }
+            break;
+        }
+        case TCE_IND_PIVOT_STANDARD:
+        case TCE_IND_PIVOT_FIBONACCI:
+        case TCE_IND_PIVOT_CAMARILLA: {
+            PivotKind k =
+                (ov.kind == TCE_IND_PIVOT_STANDARD)  ? PivotKind::Standard :
+                (ov.kind == TCE_IND_PIVOT_FIBONACCI) ? PivotKind::Fibonacci :
+                                                       PivotKind::Camarilla;
+            auto p = pivot(iSeries, k, cfg.sessionOffsetSeconds);
+            absorbRange(p.r3); absorbRange(p.s3);
+            // R1/R2/S1/S2는 보통 R3/S3 안에 들어가지만 안전을 위해 흡수
+            absorbRange(p.r1); absorbRange(p.r2);
+            absorbRange(p.s1); absorbRange(p.s2);
+            break;
+        }
+        case TCE_IND_SUPERTREND: {
+            auto st = superTrend(iSeries,
+                                 ov.period > 0 ? ov.period : 10,
+                                 ov.param  > 0 ? ov.param  : 3.0);
+            absorbRange(st.line);
+            break;
+        }
+        case TCE_IND_PSAR: {
+            const double step    = ov.param  > 0 ? ov.param  : 0.02;
+            const double maxStep = ov.param2 > 0 ? ov.param2 : 0.20;
+            auto p = psar(iSeries, step, maxStep);
+            absorbRange(p);
+            break;
+        }
+        case TCE_IND_VWAP: {
+            // VWAP은 보통 가격 봉 안에 들지만 일중 누적이 양 끝으로 빠지는 시점에서 안전 흡수.
+            auto v = vwap(iSeries, cfg.sessionOffsetSeconds);
+            absorbRange(v);
+            break;
+        }
+        default: break;
         }
     }
     {
@@ -448,6 +523,16 @@ void FrameBuilder::build(const Series& series,
             emitPolyline(vLine, iLine, dc.lower,  from, to, slot, priceY, ov.color2);
             break;
         }
+        case TCE_IND_KELTNER: {
+            const int eP = ov.period > 0 ? ov.period : 20;
+            const int aP = ov.p2     > 0 ? ov.p2     : 10;
+            const double m = ov.param > 0 ? ov.param : 2.0;
+            auto k = keltner(iSeries, eP, aP, m);
+            emitPolyline(vLine, iLine, k.middle, from, to, slot, priceY, ov.color);
+            emitPolyline(vLine, iLine, k.upper,  from, to, slot, priceY, ov.color2);
+            emitPolyline(vLine, iLine, k.lower,  from, to, slot, priceY, ov.color2);
+            break;
+        }
         case TCE_IND_ICHIMOKU: {
             const int tenkan = ov.period > 0 ? ov.period : 9;
             const int kijun  = ov.p2     > 0 ? ov.p2     : 26;
@@ -505,7 +590,9 @@ void FrameBuilder::build(const Series& series,
             break;
         }
         case TCE_IND_VWAP: {
-            emitPolyline(vLine, iLine, vwap(iSeries), from, to, slot, priceY, ov.color);
+            emitPolyline(vLine, iLine,
+                         vwap(iSeries, cfg.sessionOffsetSeconds),
+                         from, to, slot, priceY, ov.color);
             break;
         }
         case TCE_IND_PIVOT_STANDARD:
@@ -515,7 +602,7 @@ void FrameBuilder::build(const Series& series,
                 (ov.kind == TCE_IND_PIVOT_STANDARD)  ? PivotKind::Standard :
                 (ov.kind == TCE_IND_PIVOT_FIBONACCI) ? PivotKind::Fibonacci :
                                                         PivotKind::Camarilla;
-            auto p = pivot(iSeries, k);
+            auto p = pivot(iSeries, k, cfg.sessionOffsetSeconds);
             // P는 ov.color, R/S는 ov.color2 (옅게)
             TceColor pCol = ov.color;
             TceColor rsCol = ov.color2;

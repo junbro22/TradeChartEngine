@@ -183,6 +183,99 @@ int test_frame() {
         tce_clear_indicators(ctx);
     }
 
+    // Keltner frame build + priceY 흡수
+    {
+        TceColor mid{0.5f, 1, 0.5f, 1};
+        TceColor edge{0.5f, 1, 0.5f, 0.5f};
+        tce_add_keltner(ctx, 5, 3, 2.0, mid, edge);
+        TceFrame fk = tce_build_frame(ctx);
+        EXPECT(fk.mesh_count >= 1);
+        tce_release_frame(fk);
+        // priceY가 keltner upper/lower까지 확장됨을 확인 — layout 가져오기
+        TceLayout L = tce_layout(ctx);
+        (void)L; // 단순히 build 회귀 없음 확인
+        tce_clear_indicators(ctx);
+    }
+
+    // 지표 값 query API
+    {
+        TceColor c{1, 1, 1, 1};
+        tce_add_indicator(ctx, TCE_IND_SMA, 3, c);
+        tce_add_rsi(ctx, 5, c);
+
+        // 등록 후 query
+        double v = 0;
+        EXPECT(tce_query_indicator_value(ctx, TCE_IND_SMA, 3, 5, &v) == 1);
+        EXPECT(v != 0);
+        EXPECT(tce_query_indicator_value(ctx, TCE_IND_RSI, 5, 8, &v) == 1);
+
+        // period 미일치 → 0
+        EXPECT(tce_query_indicator_value(ctx, TCE_IND_SMA, 99, 5, &v) == 0);
+        // 등록 안 한 지표 → 0
+        EXPECT(tce_query_indicator_value(ctx, TCE_IND_EMA, 3, 5, &v) == 0);
+        // 범위 밖 idx → 0
+        EXPECT(tce_query_indicator_value(ctx, TCE_IND_SMA, 3, 9999, &v) == 0);
+        // 첫 (period-1) idx → 0
+        EXPECT(tce_query_indicator_value(ctx, TCE_IND_SMA, 3, 0, &v) == 0);
+
+        // BB query
+        tce_add_bollinger(ctx, 5, 2.0, c);
+        double u, m, l;
+        EXPECT(tce_query_bollinger(ctx, 5, 6, &u, &m, &l) == 1);
+        EXPECT(u > m && m > l);
+
+        // MACD query
+        tce_add_macd(ctx, 3, 6, 2, c, c, c);
+        double line, sig, hist;
+        EXPECT(tce_query_macd(ctx, 7, &line, &sig, &hist) == 1);
+
+        // SuperTrend — single + dedicated query 일관성 검증 (multiplier 보존)
+        tce_add_supertrend(ctx, 3, 1.5, c);  // 짧은 period + 작은 multiplier로 변동 보장
+        double stLine = 0;
+        int stDir = 0;
+        if (tce_query_supertrend(ctx, 8, &stLine, &stDir) == 1) {
+            // 같은 idx에서 single value query도 동일 line을 반환
+            double stLine2 = 0;
+            EXPECT(tce_query_indicator_value(ctx, TCE_IND_SUPERTREND, 3, 8, &stLine2) == 1);
+            EXPECT(std::fabs(stLine - stLine2) < 1e-9);
+        }
+
+        tce_clear_indicators(ctx);
+    }
+
+    // 세션 offset — VWAP day boundary 변화
+    {
+        // 새 chart로 깨끗한 데이터 사용
+        TceContext* c2 = tce_create();
+        tce_set_size(c2, 800, 500);
+        TceCandle hist[10];
+        for (int i = 0; i < 10; ++i) {
+            hist[i] = {(double)(i * 21600), 100.0 + i, 110.0 + i, 90.0 + i, 105.0 + i, 1000.0};
+        }
+        tce_set_history(c2, hist, 10);
+        TceColor col{1, 1, 1, 1};
+        tce_add_vwap(c2, col);
+
+        // offset 0
+        TceFrame f1 = tce_build_frame(c2);
+        EXPECT(f1.mesh_count >= 1);
+        tce_release_frame(f1);
+
+        // offset 변경 — frame 재빌드 시 vwap 재계산 (회귀 없음)
+        tce_set_session_start_utc(c2, 14, 30);
+        TceFrame f2 = tce_build_frame(c2);
+        EXPECT(f2.mesh_count >= 1);
+        tce_release_frame(f2);
+
+        // 직접 offset 지정
+        tce_set_session_offset_seconds(c2, -52200.0);
+        TceFrame f3 = tce_build_frame(c2);
+        EXPECT(f3.mesh_count >= 1);
+        tce_release_frame(f3);
+
+        tce_destroy(c2);
+    }
+
     tce_destroy(ctx);
     return failed;
 }

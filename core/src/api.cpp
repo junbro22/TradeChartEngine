@@ -19,7 +19,7 @@ void tce_destroy(TceContext* ctx) {
 }
 
 const char* tce_version(void) {
-    return "0.8.0";
+    return "0.9.0";
 }
 
 void tce_set_history(TceContext* ctx, const TceCandle* candles, size_t count) {
@@ -77,6 +77,98 @@ float tce_price_to_screen_y(const TceContext* ctx, double price) {
     return ctx->chart.priceToScreenY(price);
 }
 
+int tce_query_indicator_value(const TceContext* ctx, TceIndicatorKind kind, int period,
+                              size_t idx, double* out) {
+    if (!ctx || !out) return 0;
+    double v = 0;
+    if (!ctx->chart.queryIndicatorValue(kind, period, idx, v)) return 0;
+    *out = v;
+    return 1;
+}
+
+int tce_query_bollinger(const TceContext* ctx, int period, size_t idx,
+                        double* upper, double* middle, double* lower) {
+    if (!ctx || !upper || !middle || !lower) return 0;
+    double u, m, l;
+    if (!ctx->chart.queryBollinger(period, idx, u, m, l)) return 0;
+    *upper = u; *middle = m; *lower = l;
+    return 1;
+}
+
+int tce_query_donchian(const TceContext* ctx, int period, size_t idx,
+                       double* upper, double* middle, double* lower) {
+    if (!ctx || !upper || !middle || !lower) return 0;
+    double u, m, l;
+    if (!ctx->chart.queryDonchian(period, idx, u, m, l)) return 0;
+    *upper = u; *middle = m; *lower = l;
+    return 1;
+}
+
+int tce_query_keltner(const TceContext* ctx, int emaPeriod, size_t idx,
+                      double* upper, double* middle, double* lower) {
+    if (!ctx || !upper || !middle || !lower) return 0;
+    double u, m, l;
+    if (!ctx->chart.queryKeltner(emaPeriod, idx, u, m, l)) return 0;
+    *upper = u; *middle = m; *lower = l;
+    return 1;
+}
+
+int tce_query_macd(const TceContext* ctx, size_t idx,
+                   double* line, double* signal, double* hist) {
+    if (!ctx || !line || !signal || !hist) return 0;
+    double a, b, c;
+    if (!ctx->chart.queryMACD(idx, a, b, c)) return 0;
+    *line = a; *signal = b; *hist = c;
+    return 1;
+}
+
+int tce_query_stochastic(const TceContext* ctx, size_t idx, double* k, double* d) {
+    if (!ctx || !k || !d) return 0;
+    double a, b;
+    if (!ctx->chart.queryStochastic(idx, a, b)) return 0;
+    *k = a; *d = b;
+    return 1;
+}
+
+int tce_query_dmi(const TceContext* ctx, int period, size_t idx,
+                  double* plusDI, double* minusDI, double* adx) {
+    if (!ctx || !plusDI || !minusDI || !adx) return 0;
+    double a, b, c;
+    if (!ctx->chart.queryDMI(period, idx, a, b, c)) return 0;
+    *plusDI = a; *minusDI = b; *adx = c;
+    return 1;
+}
+
+int tce_query_pivot(const TceContext* ctx, TceIndicatorKind kind, size_t idx,
+                    double* p, double* r1, double* r2, double* r3,
+                    double* s1, double* s2, double* s3) {
+    if (!ctx || !p || !r1 || !r2 || !r3 || !s1 || !s2 || !s3) return 0;
+    double pp, rr1, rr2, rr3, ss1, ss2, ss3;
+    if (!ctx->chart.queryPivot(kind, idx, pp, rr1, rr2, rr3, ss1, ss2, ss3)) return 0;
+    *p = pp; *r1 = rr1; *r2 = rr2; *r3 = rr3;
+    *s1 = ss1; *s2 = ss2; *s3 = ss3;
+    return 1;
+}
+
+int tce_query_ichimoku(const TceContext* ctx, size_t idx,
+                       double* tenkan, double* kijun,
+                       double* senkouA, double* senkouB, double* chikou) {
+    if (!ctx || !tenkan || !kijun || !senkouA || !senkouB || !chikou) return 0;
+    double t, k, sA, sB, ch;
+    if (!ctx->chart.queryIchimoku(idx, t, k, sA, sB, ch)) return 0;
+    *tenkan = t; *kijun = k; *senkouA = sA; *senkouB = sB; *chikou = ch;
+    return 1;
+}
+
+int tce_query_supertrend(const TceContext* ctx, size_t idx,
+                         double* line, int* direction) {
+    if (!ctx || !line || !direction) return 0;
+    double l; int d;
+    if (!ctx->chart.querySuperTrend(idx, l, d)) return 0;
+    *line = l; *direction = d;
+    return 1;
+}
+
 void tce_set_series_type(TceContext* ctx, TceSeriesType type) {
     if (ctx) ctx->chart.setSeriesType(type);
 }
@@ -103,6 +195,14 @@ void tce_set_renko_brick_size(TceContext* ctx, double size) {
 
 void tce_set_show_grid(TceContext* ctx, int show) {
     if (ctx) ctx->chart.setShowGrid(show != 0);
+}
+
+void tce_set_session_start_utc(TceContext* ctx, int hour, int minute) {
+    if (ctx) ctx->chart.setSessionStartUTC(hour, minute);
+}
+
+void tce_set_session_offset_seconds(TceContext* ctx, double offsetSeconds) {
+    if (ctx) ctx->chart.setSessionOffsetSeconds(offsetSeconds);
 }
 
 void tce_add_indicator(TceContext* ctx, TceIndicatorKind kind, int period, TceColor color) {
@@ -161,6 +261,17 @@ void tce_add_donchian(TceContext* ctx, int period, TceColor color, TceColor edge
     if (!ctx) return;
     ctx->chart.addOverlay(TCE_IND_DONCHIAN, period > 0 ? period : 20, 0.0,
                           color, edgeColor);
+}
+
+void tce_add_keltner(TceContext* ctx, int emaPeriod, int atrPeriod, double multiplier,
+                     TceColor color, TceColor edgeColor) {
+    if (!ctx) return;
+    ctx->chart.addOverlayEx(TCE_IND_KELTNER,
+                            emaPeriod > 0 ? emaPeriod : 20,
+                            atrPeriod > 0 ? atrPeriod : 10,
+                            0, 0,
+                            multiplier > 0 ? multiplier : 2.0, 0.0,
+                            color, edgeColor);
 }
 
 void tce_add_rsi(TceContext* ctx, int period, TceColor color) {

@@ -1,5 +1,24 @@
 #include "chart.h"
 #include "data/transforms.h"
+#include "indicator/ma.h"
+#include "indicator/ema.h"
+#include "indicator/rsi.h"
+#include "indicator/macd.h"
+#include "indicator/bollinger.h"
+#include "indicator/donchian.h"
+#include "indicator/keltner.h"
+#include "indicator/stochastic.h"
+#include "indicator/atr.h"
+#include "indicator/ichimoku.h"
+#include "indicator/psar.h"
+#include "indicator/supertrend.h"
+#include "indicator/vwap.h"
+#include "indicator/dmi.h"
+#include "indicator/cci.h"
+#include "indicator/williams_r.h"
+#include "indicator/obv.h"
+#include "indicator/mfi.h"
+#include "indicator/pivot.h"
 #include <algorithm>
 #include <cmath>
 
@@ -392,6 +411,238 @@ void Chart::updateAlertLineByScreen(int id, float screenY) {
 }
 void Chart::removeAlertLine(int id) { alerts_.remove(id); }
 void Chart::clearAlertLines()        { alerts_.clear(); }
+
+// ============================================================
+// 지표 값 query — host crosshair hover 라벨용
+//
+// 정책 명세
+//   - **idx는 항상 원본 series 인덱스(`candleCount()` 기준)**.
+//   - HA 모드: 지표는 원본 OHLC로 계산되므로 query 인덱스가 자연 일치.
+//   - Renko 모드: 메인 패널은 brick 시리즈로 그려지지만 query는 원본 OHLC 기준 결과를
+//     반환한다(host hover의 시간 좌표가 원본 series의 timestamp이기 때문).
+//     이 정책은 hover 라벨과 화면 라인이 한 칸씩 어긋나지 않게 하기 위함이며,
+//     Renko에서 차트 위 라인은 brick 시리즈 기반이라 시각·query 의미가 다를 수 있음을
+//     호스트에게 README로 안내한다.
+// ============================================================
+
+namespace {
+
+template <typename V>
+bool readOpt(const std::vector<V>& v, size_t i, double& out) {
+    if (i >= v.size() || !v[i]) return false;
+    out = *v[i];
+    return true;
+}
+
+} // namespace
+
+bool Chart::queryIndicatorValue(TceIndicatorKind kind, int period, size_t idx, double& out) const {
+    if (idx >= series_.size()) return false;
+    // (kind, period) 일치 spec 존재 확인 (period 무시 지표는 OBV/VWAP/Pivot)
+    const bool periodIgnored = (kind == TCE_IND_OBV || kind == TCE_IND_VWAP);
+    auto matchOverlay = [&]() {
+        for (const auto& s : overlays_) {
+            if (s.kind != kind) continue;
+            if (periodIgnored || s.period == period) return true;
+        }
+        return false;
+    };
+    auto matchSubpanel = [&]() {
+        for (const auto& s : subpanels_) {
+            if (s.kind != kind) continue;
+            if (periodIgnored || s.p1 == period) return true;
+        }
+        return false;
+    };
+
+    const Series* iSeries = &series_;  // query는 원본 series 기준 (정책: 위 주석 참조)
+
+    switch (kind) {
+    case TCE_IND_SMA:
+        if (!matchOverlay()) return false;
+        return readOpt(sma(*iSeries, period), idx, out);
+    case TCE_IND_EMA:
+        if (!matchOverlay()) return false;
+        return readOpt(ema(*iSeries, period), idx, out);
+    case TCE_IND_VWAP:
+        if (!matchOverlay()) return false;
+        return readOpt(vwap(*iSeries, config_.sessionOffsetSeconds), idx, out);
+    case TCE_IND_SUPERTREND: {
+        // spec param(multiplier) 사용 — frame_builder와 일관성 보장.
+        const OverlaySpec* spec = nullptr;
+        for (const auto& s : overlays_) {
+            if (s.kind == TCE_IND_SUPERTREND && s.period == period) { spec = &s; break; }
+        }
+        if (!spec) return false;
+        auto st = superTrend(*iSeries, period > 0 ? period : 10,
+                                       spec->param > 0 ? spec->param : 3.0);
+        return readOpt(st.line, idx, out);
+    }
+    case TCE_IND_RSI:
+        if (!matchSubpanel()) return false;
+        return readOpt(rsi(*iSeries, period), idx, out);
+    case TCE_IND_ATR:
+        if (!matchSubpanel()) return false;
+        return readOpt(atr(*iSeries, period), idx, out);
+    case TCE_IND_CCI:
+        if (!matchSubpanel()) return false;
+        return readOpt(cci(*iSeries, period), idx, out);
+    case TCE_IND_WILLIAMS_R:
+        if (!matchSubpanel()) return false;
+        return readOpt(williamsR(*iSeries, period), idx, out);
+    case TCE_IND_MFI:
+        if (!matchSubpanel()) return false;
+        return readOpt(mfi(*iSeries, period), idx, out);
+    case TCE_IND_OBV:
+        if (!matchSubpanel()) return false;
+        return readOpt(obv(*iSeries), idx, out);
+    default:
+        return false;
+    }
+}
+
+bool Chart::queryBollinger(int period, size_t idx, double& upper, double& middle, double& lower) const {
+    if (idx >= series_.size()) return false;
+    const OverlaySpec* spec = nullptr;
+    for (const auto& s : overlays_) {
+        if (s.kind == TCE_IND_BOLLINGER && s.period == period) { spec = &s; break; }
+    }
+    if (!spec) return false;
+    const Series* iSeries = &series_;  // query는 원본 series 기준 (정책: 위 주석 참조)
+    auto bb = bollinger(*iSeries, period, spec->param);
+    return readOpt(bb.upper, idx, upper)
+        && readOpt(bb.middle, idx, middle)
+        && readOpt(bb.lower, idx, lower);
+}
+
+bool Chart::queryDonchian(int period, size_t idx, double& upper, double& middle, double& lower) const {
+    if (idx >= series_.size()) return false;
+    bool found = false;
+    for (const auto& s : overlays_) {
+        if (s.kind == TCE_IND_DONCHIAN && s.period == period) { found = true; break; }
+    }
+    if (!found) return false;
+    const Series* iSeries = &series_;  // query는 원본 series 기준 (정책: 위 주석 참조)
+    auto dc = donchian(*iSeries, period);
+    return readOpt(dc.upper, idx, upper)
+        && readOpt(dc.middle, idx, middle)
+        && readOpt(dc.lower, idx, lower);
+}
+
+bool Chart::queryKeltner(int emaPeriod, size_t idx, double& upper, double& middle, double& lower) const {
+    if (idx >= series_.size()) return false;
+    const OverlaySpec* spec = nullptr;
+    for (const auto& s : overlays_) {
+        if (s.kind == TCE_IND_KELTNER && s.period == emaPeriod) { spec = &s; break; }
+    }
+    if (!spec) return false;
+    const Series* iSeries = &series_;  // query는 원본 series 기준 (정책: 위 주석 참조)
+    auto k = keltner(*iSeries, emaPeriod, spec->p2 > 0 ? spec->p2 : 10,
+                                spec->param > 0 ? spec->param : 2.0);
+    return readOpt(k.upper, idx, upper)
+        && readOpt(k.middle, idx, middle)
+        && readOpt(k.lower, idx, lower);
+}
+
+bool Chart::queryMACD(size_t idx, double& line, double& signal, double& hist) const {
+    if (idx >= series_.size()) return false;
+    const SubpanelSpec* spec = nullptr;
+    for (const auto& s : subpanels_) {
+        if (s.kind == TCE_IND_MACD) { spec = &s; break; }
+    }
+    if (!spec) return false;
+    const Series* iSeries = &series_;  // query는 원본 series 기준 (정책: 위 주석 참조)
+    auto m = macd(*iSeries, spec->p1, spec->p2, spec->p3);
+    return readOpt(m.line, idx, line)
+        && readOpt(m.signal, idx, signal)
+        && readOpt(m.histogram, idx, hist);
+}
+
+bool Chart::queryStochastic(size_t idx, double& k, double& d) const {
+    if (idx >= series_.size()) return false;
+    const SubpanelSpec* spec = nullptr;
+    for (const auto& s : subpanels_) {
+        if (s.kind == TCE_IND_STOCHASTIC) { spec = &s; break; }
+    }
+    if (!spec) return false;
+    const Series* iSeries = &series_;  // query는 원본 series 기준 (정책: 위 주석 참조)
+    auto st = stochastic(*iSeries, spec->p1, spec->p2, spec->p3);
+    return readOpt(st.k, idx, k) && readOpt(st.d, idx, d);
+}
+
+bool Chart::queryDMI(int period, size_t idx, double& plusDI, double& minusDI, double& adx) const {
+    if (idx >= series_.size()) return false;
+    bool found = false;
+    for (const auto& s : subpanels_) {
+        if (s.kind == TCE_IND_DMI_ADX && s.p1 == period) { found = true; break; }
+    }
+    if (!found) return false;
+    const Series* iSeries = &series_;  // query는 원본 series 기준 (정책: 위 주석 참조)
+    auto d = dmi(*iSeries, period);
+    return readOpt(d.plusDI, idx, plusDI)
+        && readOpt(d.minusDI, idx, minusDI)
+        && readOpt(d.adx, idx, adx);
+}
+
+bool Chart::queryPivot(TceIndicatorKind kind, size_t idx,
+                       double& p, double& r1, double& r2, double& r3,
+                       double& s1, double& s2, double& s3) const {
+    if (idx >= series_.size()) return false;
+    if (kind != TCE_IND_PIVOT_STANDARD && kind != TCE_IND_PIVOT_FIBONACCI
+        && kind != TCE_IND_PIVOT_CAMARILLA) return false;
+    bool found = false;
+    for (const auto& s : overlays_) {
+        if (s.kind == kind) { found = true; break; }
+    }
+    if (!found) return false;
+    PivotKind pk =
+        (kind == TCE_IND_PIVOT_STANDARD)  ? PivotKind::Standard :
+        (kind == TCE_IND_PIVOT_FIBONACCI) ? PivotKind::Fibonacci :
+                                            PivotKind::Camarilla;
+    const Series* iSeries = &series_;  // query는 원본 series 기준 (정책: 위 주석 참조)
+    auto pv = pivot(*iSeries, pk, config_.sessionOffsetSeconds);
+    return readOpt(pv.p,  idx, p)
+        && readOpt(pv.r1, idx, r1) && readOpt(pv.r2, idx, r2) && readOpt(pv.r3, idx, r3)
+        && readOpt(pv.s1, idx, s1) && readOpt(pv.s2, idx, s2) && readOpt(pv.s3, idx, s3);
+}
+
+bool Chart::queryIchimoku(size_t idx, double& tenkan, double& kijun,
+                          double& senkouA, double& senkouB, double& chikou) const {
+    if (idx >= series_.size()) return false;
+    const OverlaySpec* spec = nullptr;
+    for (const auto& s : overlays_) {
+        if (s.kind == TCE_IND_ICHIMOKU) { spec = &s; break; }
+    }
+    if (!spec) return false;
+    const Series* iSeries = &series_;  // query는 원본 series 기준 (정책: 위 주석 참조)
+    const int tk = spec->period > 0 ? spec->period : 9;
+    const int kj = spec->p2     > 0 ? spec->p2     : 26;
+    const int sB = spec->p3     > 0 ? spec->p3     : 52;
+    const int dp = spec->p4     > 0 ? spec->p4     : 26;
+    auto ic = ichimoku(*iSeries, tk, kj, sB, dp);
+    bool ok = readOpt(ic.tenkan, idx, tenkan) && readOpt(ic.kijun, idx, kijun);
+    if (!ok) return false;
+    // senkouA/B/chikou는 idx에서 nullopt일 수 있음 — 실패해도 부분 성공 허용은 안 함(전체 fail).
+    return readOpt(ic.senkouA, idx, senkouA)
+        && readOpt(ic.senkouB, idx, senkouB)
+        && readOpt(ic.chikou, idx, chikou);
+}
+
+bool Chart::querySuperTrend(size_t idx, double& line, int& direction) const {
+    if (idx >= series_.size()) return false;
+    const OverlaySpec* spec = nullptr;
+    for (const auto& s : overlays_) {
+        if (s.kind == TCE_IND_SUPERTREND) { spec = &s; break; }
+    }
+    if (!spec) return false;
+    const Series* iSeries = &series_;  // query는 원본 series 기준 (정책: 위 주석 참조)
+    auto st = superTrend(*iSeries, spec->period > 0 ? spec->period : 10,
+                                   spec->param > 0 ? spec->param : 3.0);
+    if (idx >= st.line.size() || !st.line[idx]) return false;
+    line = *st.line[idx];
+    direction = (idx < st.direction.size()) ? st.direction[idx] : 0;
+    return true;
+}
 
 int  Chart::hitTestAlertLine(float screenY, float tolPx) const {
     int best = 0;

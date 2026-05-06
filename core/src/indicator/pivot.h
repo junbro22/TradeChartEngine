@@ -25,6 +25,9 @@ struct PivotResult {
 
 // 직전 거래일 H/L/C로부터 당일 모든 캔들 인덱스에 같은 7개 값 채움.
 // 첫 거래일은 nullopt.
-PivotResult pivot(const Series& series, PivotKind kind);
+// @param sessionOffsetSeconds  거래소 세션 시작이 UTC 자정과 어긋날 때 보정.
+//   day boundary는 floor((timestamp + sessionOffsetSeconds) / 86400) 기준.
+PivotResult pivot(const Series& series, PivotKind kind,
+                  double sessionOffsetSeconds = 0.0);
 
 } // namespace tce

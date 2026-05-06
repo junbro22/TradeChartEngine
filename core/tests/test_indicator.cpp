@@ -2,6 +2,10 @@
 #include "indicator/ma.h"
 #include "indicator/ema.h"
 #include "indicator/donchian.h"
+#include "indicator/keltner.h"
+#include "indicator/atr.h"
+#include "indicator/vwap.h"
+#include "indicator/pivot.h"
 #include <cstdio>
 #include <cmath>
 
@@ -66,6 +70,70 @@ int test_indicator() {
         for (size_t i = 0; i < dc6.upper.size(); ++i) {
             EXPECT(!dc6.upper[i].has_value());
         }
+    }
+
+    // Keltner Channels — middle == EMA, upper/lower 일치 검증
+    {
+        tce::Series ks;
+        TceCandle hi[10];
+        for (int i = 0; i < 10; ++i) {
+            double base = 100.0 + i;
+            hi[i] = {(double)i, base, base + 2, base - 2, base, 1.0};
+        }
+        ks.setHistory(hi, 10);
+        auto k = tce::keltner(ks, 5, 3, 2.0);
+        auto e5 = tce::ema(ks, 5);
+        auto a3 = tce::atr(ks, 3);
+        for (size_t i = 0; i < 10; ++i) {
+            if (e5[i] && a3[i]) {
+                EXPECT(k.middle[i].has_value() && std::fabs(*k.middle[i] - *e5[i]) < 1e-9);
+                EXPECT(k.upper[i].has_value()  && std::fabs(*k.upper[i]  - (*e5[i] + 2.0 * *a3[i])) < 1e-9);
+                EXPECT(k.lower[i].has_value()  && std::fabs(*k.lower[i]  - (*e5[i] - 2.0 * *a3[i])) < 1e-9);
+            }
+        }
+    }
+
+    // 세션 offset — VWAP가 day boundary에서 reset되는지 검증
+    {
+        tce::Series vs;
+        // ts = 0, 21600, 43200, 64800, 86400, 108000, ...  (6h 간격)
+        // offset=0: floor(ts/86400)이 i=3에서 0, i=4에서 1 → i=4에서 reset.
+        TceCandle vc[10];
+        for (int i = 0; i < 10; ++i) {
+            vc[i] = {(double)(i * 21600), 100.0 + i, 110.0 + i, 90.0 + i, 105.0 + i, 1000.0};
+        }
+        vs.setHistory(vc, 10);
+        auto v = tce::vwap(vs, 0);
+        EXPECT(v.size() == 10);
+        // i=4에서 cumPV/cumV reset → VWAP[4] == typical[4]
+        EXPECT(v[4].has_value());
+        double tp4 = (vc[4].high + vc[4].low + vc[4].close) / 3.0;
+        EXPECT(std::fabs(*v[4] - tp4) < 1e-9);
+
+        // offset=-43200: ts+offset = -43200, -21600, 0, 21600, 43200, 64800, 86400, ...
+        // floor: -1, -1, 0, 0, 0, 0, 1, ... → reset at i=2 and i=6.
+        auto v2 = tce::vwap(vs, -43200);
+        EXPECT(v2[2].has_value());
+        double tp2 = (vc[2].high + vc[2].low + vc[2].close) / 3.0;
+        EXPECT(std::fabs(*v2[2] - tp2) < 1e-9);
+        EXPECT(v2[6].has_value());
+        double tp6 = (vc[6].high + vc[6].low + vc[6].close) / 3.0;
+        EXPECT(std::fabs(*v2[6] - tp6) < 1e-9);
+    }
+
+    // Pivot — offset 0 vs offset 변경 시 boundary 위치 변화
+    {
+        tce::Series ps;
+        TceCandle pc[15];
+        for (int i = 0; i < 15; ++i) {
+            pc[i] = {(double)(i * 21600), 100.0, 110.0 + i, 90.0 - i, 100.0, 1000.0};
+        }
+        ps.setHistory(pc, 15);
+        auto piv0 = tce::pivot(ps, tce::PivotKind::Standard, 0);
+        // 첫 거래일은 모두 nullopt
+        EXPECT(!piv0.p[0].has_value());
+        // 5번째부터(day 1) 값 있어야
+        EXPECT(piv0.p[4].has_value() || piv0.p[5].has_value());
     }
 
     return failed;

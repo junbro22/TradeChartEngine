@@ -43,6 +43,15 @@ public:
     void setPriceAxisMode(TcePriceAxisMode m) { config_.priceMode = m; }
     void setRenkoBrickSize(double v)          { config_.renkoBrickSize = v; }
     void setShowGrid(bool v)                  { config_.showGrid = v; }
+    /// 거래소 세션 시작 시각(UTC 기준) 설정 — VWAP/Pivot 일별 boundary 보정.
+    /// 예: NYSE 09:30 EST → setSessionStartUTC(14, 30); EU CET 09:00 → setSessionStartUTC(8, 0);
+    /// KR/JP는 09:00 = UTC 00:00이므로 setSessionStartUTC(0, 0)이 자연스러우나 default 동작.
+    void setSessionStartUTC(int hour, int minute) {
+        config_.sessionOffsetSeconds = -(static_cast<double>(hour) * 3600.0
+                                       + static_cast<double>(minute) * 60.0);
+    }
+    /// 직접 offset을 초 단위로 지정 — `set_session_start_utc`와 둘 중 하나만 쓰면 됨.
+    void setSessionOffsetSeconds(double offset)  { config_.sessionOffsetSeconds = offset; }
 
     // overlay 지표 (메인 패널)
     void addOverlay(TceIndicatorKind k, int period, double param,
@@ -126,6 +135,21 @@ public:
     /// alert.price가 있으면 fire. host가 푸시 노티/사운드 트리거.
     using AlertCrossFn = void(*)(int alert_id, double cross_price, void* user);
     void setAlertCallback(AlertCrossFn cb, void* user) { alertCb_ = cb; alertUser_ = user; }
+
+    // 지표 값 query — host의 crosshair hover 라벨용. 등록된 (kind, period) spec이 있어야 동작.
+    bool queryIndicatorValue(TceIndicatorKind kind, int period, size_t idx, double& out) const;
+    bool queryBollinger(int period, size_t idx, double& upper, double& middle, double& lower) const;
+    bool queryDonchian(int period, size_t idx, double& upper, double& middle, double& lower) const;
+    bool queryKeltner(int emaPeriod, size_t idx, double& upper, double& middle, double& lower) const;
+    bool queryMACD(size_t idx, double& line, double& signal, double& hist) const;
+    bool queryStochastic(size_t idx, double& k, double& d) const;
+    bool queryDMI(int period, size_t idx, double& plusDI, double& minusDI, double& adx) const;
+    bool queryPivot(TceIndicatorKind kind, size_t idx,
+                    double& p, double& r1, double& r2, double& r3,
+                    double& s1, double& s2, double& s3) const;
+    bool queryIchimoku(size_t idx, double& tenkan, double& kijun,
+                       double& senkouA, double& senkouB, double& chikou) const;
+    bool querySuperTrend(size_t idx, double& line, int& direction) const;
 
 private:
     Series                       series_;

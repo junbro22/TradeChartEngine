@@ -119,6 +119,7 @@ typedef enum TceIndicatorKind {
     TCE_IND_PIVOT_FIBONACCI   = 8,    ///< Pivot Points (Fibonacci)
     TCE_IND_PIVOT_CAMARILLA   = 9,    ///< Pivot Points (Camarilla)
     TCE_IND_DONCHIAN          = 10,   ///< Donchian Channels — period 캔들 high.max/low.min/center
+    TCE_IND_KELTNER           = 11,   ///< Keltner Channels — EMA(emaP) ± multiplier * ATR(atrP)
 
     /* ── Subpanel (별도 패널) ── */
     TCE_IND_RSI               = 100,  ///< RSI (period). 0..100 + 30/70 가이드선

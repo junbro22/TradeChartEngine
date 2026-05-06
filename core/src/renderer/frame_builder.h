@@ -49,6 +49,10 @@ struct ChartConfig {
     TcePriceAxisMode priceMode     = TCE_PRICE_LINEAR;
     double           renkoBrickSize = 0.0;   // 0이면 자동 (마지막 close × 0.5%)
     bool             showGrid      = true;
+    /// VWAP/Pivot의 일별 boundary를 거래소 세션 시작에 맞춤. 단위는 초.
+    /// day boundary = floor((timestamp + sessionOffsetSeconds) / 86400).
+    /// 0=UTC 자정 기준. KR/JP=0, NYSE 09:30 EST=-52200, EU CET 09:00=-28800.
+    double           sessionOffsetSeconds = 0.0;
 };
 
 class FrameOutput {

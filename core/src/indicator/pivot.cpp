@@ -1,16 +1,14 @@
 #include "indicator/pivot.h"
 #include "data/series.h"
-#include <ctime>
+#include <cmath>
 
 namespace tce {
 
 namespace {
 
-int dayKey(double ts) {
-    std::time_t t = static_cast<std::time_t>(ts);
-    std::tm tm_v{};
-    localtime_r(&t, &tm_v);
-    return (tm_v.tm_year + 1900) * 10000 + (tm_v.tm_mon + 1) * 100 + tm_v.tm_mday;
+// UTC + offset 기반 day key — 빌드 머신 timezone 의존성 없음.
+int64_t dayKey(double ts, double offset) {
+    return static_cast<int64_t>(std::floor((ts + offset) / 86400.0));
 }
 
 struct DaySummary { double H, L, C; };
@@ -64,7 +62,7 @@ Levels camarilla(const DaySummary& d) {
 
 } // namespace
 
-PivotResult pivot(const Series& series, PivotKind kind) {
+PivotResult pivot(const Series& series, PivotKind kind, double sessionOffsetSeconds) {
     const auto& cs = series.candles();
     PivotResult r;
     const size_t N = cs.size();
@@ -80,10 +78,10 @@ PivotResult pivot(const Series& series, PivotKind kind) {
     // 거래일 segments
     struct Seg { size_t from, to; };
     std::vector<Seg> segs;
-    int currentDay = dayKey(cs[0].timestamp);
+    int64_t currentDay = dayKey(cs[0].timestamp, sessionOffsetSeconds);
     size_t segStart = 0;
     for (size_t i = 1; i < N; ++i) {
-        int d = dayKey(cs[i].timestamp);
+        int64_t d = dayKey(cs[i].timestamp, sessionOffsetSeconds);
         if (d != currentDay) {
             segs.push_back({segStart, i});
             segStart = i;
