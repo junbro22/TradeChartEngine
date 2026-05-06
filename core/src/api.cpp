@@ -23,7 +23,7 @@ void tce_destroy(TceContext* ctx) {
 }
 
 const char* tce_version(void) {
-    return "0.11.0";
+    return "0.12.0";
 }
 
 void tce_set_history(TceContext* ctx, const TceCandle* candles, size_t count) {
