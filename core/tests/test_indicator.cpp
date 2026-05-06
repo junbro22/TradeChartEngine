@@ -5,6 +5,7 @@
 #include "indicator/keltner.h"
 #include "indicator/zigzag.h"
 #include "indicator/hma.h"
+#include "indicator/stoch_rsi.h"
 #include "indicator/atr.h"
 #include "indicator/vwap.h"
 #include "indicator/pivot.h"
@@ -227,6 +228,27 @@ int test_indicator() {
             if (zz4[i] && std::fabs(*zz4[i] - 120.0) < 1e-9) { foundHigh = true; break; }
         }
         EXPECT(foundHigh);
+    }
+
+    // Stochastic RSI — 단조 증가 close에서 RSI=100 수렴 → stochRSI도 100 근처 유지
+    {
+        tce::Series ss;
+        TceCandle sc[50];
+        for (int i = 0; i < 50; ++i) {
+            double p = 100.0 + i;
+            sc[i] = {(double)i, p, p, p, p, 1.0};
+        }
+        ss.setHistory(sc, 50);
+        auto sr = tce::stochasticRSI(ss, 14, 14, 3, 3);
+        EXPECT(sr.k.size() == 50);
+        // RSI(14)=14..49, raw(kPeriod=14)=27..49, k=SMA(raw,3)=29..49, d=SMA(k,3)=31..49
+        EXPECT(sr.k[40].has_value());
+        EXPECT(sr.d[40].has_value());
+
+        // smooth=1, dPeriod=1 fallback — raw 그대로 통과
+        auto sr1 = tce::stochasticRSI(ss, 14, 14, 1, 1);
+        EXPECT(sr1.k[40].has_value());
+        EXPECT(sr1.d[40].has_value());
     }
 
     // HMA — period 4 단조증가 시리즈에서 close에 빠르게 따라감 검증
