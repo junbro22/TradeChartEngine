@@ -225,6 +225,7 @@ void tce_add_indicator(TceContext* ctx, TceIndicatorKind kind, int period, TceCo
     switch (kind) {
     case TCE_IND_SMA:
     case TCE_IND_EMA:
+    case TCE_IND_HMA:
         ctx->chart.addOverlay(kind, period, 0.0, color);
         return;
     case TCE_IND_VWAP:
@@ -268,6 +269,11 @@ void tce_add_bollinger(TceContext* ctx, int period, double stddev, TceColor colo
     if (!ctx) return;
     TceColor edge{color.r, color.g, color.b, 0.5f};
     ctx->chart.addOverlay(TCE_IND_BOLLINGER, period, stddev, color, edge);
+}
+
+void tce_add_hma(TceContext* ctx, int period, TceColor color) {
+    if (!ctx) return;
+    ctx->chart.addOverlay(TCE_IND_HMA, period > 1 ? period : 20, 0.0, color);
 }
 
 void tce_add_donchian(TceContext* ctx, int period, TceColor color, TceColor edgeColor) {

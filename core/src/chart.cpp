@@ -2,6 +2,7 @@
 #include "data/transforms.h"
 #include "indicator/ma.h"
 #include "indicator/ema.h"
+#include "indicator/hma.h"
 #include "indicator/rsi.h"
 #include "indicator/macd.h"
 #include "indicator/bollinger.h"
@@ -465,6 +466,9 @@ bool Chart::queryIndicatorValue(TceIndicatorKind kind, int period, size_t idx, d
     case TCE_IND_EMA:
         if (!matchOverlay()) return false;
         return readOpt(ema(*iSeries, period), idx, out);
+    case TCE_IND_HMA:
+        if (!matchOverlay()) return false;
+        return readOpt(hma(*iSeries, period), idx, out);
     case TCE_IND_VWAP:
         if (!matchOverlay()) return false;
         return readOpt(vwap(*iSeries, config_.sessionOffsetSeconds), idx, out);

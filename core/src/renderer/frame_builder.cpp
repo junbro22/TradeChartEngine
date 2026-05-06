@@ -9,6 +9,7 @@
 #include "indicator/donchian.h"
 #include "indicator/keltner.h"
 #include "indicator/zigzag.h"
+#include "indicator/hma.h"
 #include "indicator/stochastic.h"
 #include "indicator/atr.h"
 #include "indicator/ichimoku.h"
@@ -514,6 +515,9 @@ void FrameBuilder::build(const Series& series,
             break;
         case TCE_IND_EMA:
             emitPolyline(vLine, iLine, ema(iSeries, ov.period), from, to, slot, priceY, ov.color);
+            break;
+        case TCE_IND_HMA:
+            emitPolyline(vLine, iLine, hma(iSeries, ov.period), from, to, slot, priceY, ov.color);
             break;
         case TCE_IND_BOLLINGER: {
             auto bb = bollinger(iSeries, ov.period, ov.param);

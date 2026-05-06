@@ -4,6 +4,7 @@
 #include "indicator/donchian.h"
 #include "indicator/keltner.h"
 #include "indicator/zigzag.h"
+#include "indicator/hma.h"
 #include "indicator/atr.h"
 #include "indicator/vwap.h"
 #include "indicator/pivot.h"
@@ -226,6 +227,26 @@ int test_indicator() {
             if (zz4[i] && std::fabs(*zz4[i] - 120.0) < 1e-9) { foundHigh = true; break; }
         }
         EXPECT(foundHigh);
+    }
+
+    // HMA — period 4 단조증가 시리즈에서 close에 빠르게 따라감 검증
+    {
+        tce::Series hs;
+        TceCandle hc[10];
+        for (int i = 0; i < 10; ++i) {
+            double p = 100.0 + i * 2.0;  // 100, 102, ..., 118
+            hc[i] = {(double)i, p, p, p, p, 1.0};
+        }
+        hs.setHistory(hc, 10);
+        auto h = tce::hma(hs, 4);
+        // sqrt(4)=2 → wma 단계 모두 적용 후 인덱스 정상 채워짐
+        EXPECT(h.size() == 10);
+        // period < 4면 nullopt
+        EXPECT(!h[0].has_value());
+        // 충분히 큰 idx에서는 valid + close에 가까움 (단조 증가)
+        EXPECT(h[8].has_value() && h[9].has_value());
+        // HMA(8) < HMA(9) (상승 추세)
+        EXPECT(*h[8] < *h[9]);
     }
 
     return failed;

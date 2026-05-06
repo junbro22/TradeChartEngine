@@ -146,6 +146,10 @@ void tce_clear_indicators(TceContext* ctx);
 /// 일반적인 값: period=20, stddev=2.0.
 void tce_add_bollinger(TceContext* ctx, int period, double stddev, TceColor color);
 
+/// Hull Moving Average — WMA 기반의 라그 적은 MA. 표준 period=20.
+/// 산식: WMA(2*WMA(close, period/2) - WMA(close, period), sqrt(period))
+void tce_add_hma(TceContext* ctx, int period, TceColor color);
+
 /// Donchian Channels — period 캔들의 high.max(상단)/low.min(하단)/중앙선.
 /// 표준값 period=20. 터틀 트레이딩에서 자주 쓰임.
 /// @param color      중앙선(중간) 색

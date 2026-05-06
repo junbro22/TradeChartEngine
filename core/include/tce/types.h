@@ -122,6 +122,7 @@ typedef enum TceIndicatorKind {
     TCE_IND_KELTNER           = 11,   ///< Keltner Channels — EMA(emaP) ± multiplier * ATR(atrP)
     TCE_IND_ZIGZAG            = 12,   ///< ZigZag — deviationPct% 이상의 swing high/low 직선 연결
     TCE_IND_VOLUME_PROFILE    = 13,   ///< Volume Profile — 가시 가격 범위 bin별 거래량 + POC/VAH/VAL
+    TCE_IND_HMA               = 14,   ///< Hull Moving Average — WMA 기반 라그 적은 MA
 
     /* ── Subpanel (별도 패널) ── */
     TCE_IND_RSI               = 100,  ///< RSI (period). 0..100 + 30/70 가이드선
