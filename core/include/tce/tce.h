@@ -232,6 +232,12 @@ void tce_add_macd(TceContext* ctx, int fast, int slow, int signal,
 void tce_add_stochastic(TceContext* ctx, int kPeriod, int dPeriod, int smooth,
                         TceColor kColor, TceColor dColor);
 
+/// Stochastic RSI — RSI 시리즈에 stochastic 공식 적용.
+/// 표준값 rsiPeriod=14, kPeriod=14, dPeriod=3, smooth=3. 0..100, 20/80 가이드선 자동.
+void tce_add_stochastic_rsi(TceContext* ctx,
+                             int rsiPeriod, int kPeriod, int dPeriod, int smooth,
+                             TceColor kColor, TceColor dColor);
+
 /// ATR — Wilder의 평균 진폭. period 표준값 14.
 void tce_add_atr(TceContext* ctx, int period, TceColor color);
 
@@ -329,6 +335,10 @@ int tce_query_macd(const TceContext* ctx, size_t candle_index,
 /// Stochastic query — %K / %D 2채널.
 int tce_query_stochastic(const TceContext* ctx, size_t candle_index,
                          double* k, double* d);
+
+/// Stochastic RSI query — %K / %D 2채널 (Stochastic과 동일 시그니처).
+int tce_query_stochastic_rsi(const TceContext* ctx, size_t candle_index,
+                              double* k, double* d);
 
 /// DMI/ADX query — +DI / -DI / ADX 3채널.
 int tce_query_dmi(const TceContext* ctx, int period, size_t candle_index,

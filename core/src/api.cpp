@@ -134,6 +134,14 @@ int tce_query_stochastic(const TceContext* ctx, size_t idx, double* k, double* d
     return 1;
 }
 
+int tce_query_stochastic_rsi(const TceContext* ctx, size_t idx, double* k, double* d) {
+    if (!ctx || !k || !d) return 0;
+    double a, b;
+    if (!ctx->chart.queryStochasticRSI(idx, a, b)) return 0;
+    *k = a; *d = b;
+    return 1;
+}
+
 int tce_query_dmi(const TceContext* ctx, int period, size_t idx,
                   double* plusDI, double* minusDI, double* adx) {
     if (!ctx || !plusDI || !minusDI || !adx) return 0;
@@ -327,6 +335,19 @@ void tce_add_stochastic(TceContext* ctx, int kPeriod, int dPeriod, int smooth,
                         TceColor kColor, TceColor dColor) {
     if (!ctx) return;
     ctx->chart.addSubpanel(TCE_IND_STOCHASTIC, kPeriod, dPeriod, smooth, kColor, dColor);
+}
+
+void tce_add_stochastic_rsi(TceContext* ctx,
+                             int rsiPeriod, int kPeriod, int dPeriod, int smooth,
+                             TceColor kColor, TceColor dColor) {
+    if (!ctx) return;
+    // p1=rsiPeriod, p2=kPeriod, p3=dPeriod, p4=smooth
+    ctx->chart.addSubpanel(TCE_IND_STOCHASTIC_RSI,
+                            rsiPeriod > 1 ? rsiPeriod : 14,
+                            kPeriod   > 0 ? kPeriod   : 14,
+                            dPeriod   > 0 ? dPeriod   : 3,
+                            kColor, dColor, {0.5f, 0.5f, 0.5f, 0.4f},
+                            smooth    > 0 ? smooth    : 3);
 }
 
 void tce_add_atr(TceContext* ctx, int period, TceColor color) {

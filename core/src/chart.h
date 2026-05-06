@@ -64,11 +64,12 @@ public:
     void removeOverlay(TceIndicatorKind k, int period);
     void clearOverlays();
 
-    // subpanel 지표 (보조 패널)
+    // subpanel 지표 (보조 패널). p4는 Stochastic RSI smooth 등 4번째 파라미터용 (default 0).
     void addSubpanel(TceIndicatorKind k, int p1, int p2, int p3,
                      TceColor color1,
                      TceColor color2 = {1, 1, 1, 0.6},
-                     TceColor color3 = {0.5f, 0.5f, 0.5f, 0.4f});
+                     TceColor color3 = {0.5f, 0.5f, 0.5f, 0.4f},
+                     int p4 = 0);
     /// kind 일치 + (period<=0 무관 OR p1==period 일치)인 첫 spec 1개 제거.
     /// period<=0이면 같은 kind의 모든 spec 제거.
     void removeSubpanel(TceIndicatorKind k, int period = 0);
@@ -160,6 +161,7 @@ public:
     bool queryKeltner(int emaPeriod, size_t idx, double& upper, double& middle, double& lower) const;
     bool queryMACD(size_t idx, double& line, double& signal, double& hist) const;
     bool queryStochastic(size_t idx, double& k, double& d) const;
+    bool queryStochasticRSI(size_t idx, double& k, double& d) const;
     bool queryDMI(int period, size_t idx, double& plusDI, double& minusDI, double& adx) const;
     bool queryPivot(TceIndicatorKind kind, size_t idx,
                     double& p, double& r1, double& r2, double& r3,

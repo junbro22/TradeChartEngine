@@ -24,10 +24,11 @@ struct OverlaySpec {
 
 // Subpanel (하단 별도 패널) 지표
 struct SubpanelSpec {
-    TceIndicatorKind kind;       // RSI / MACD / STOCHASTIC / ATR
+    TceIndicatorKind kind;       // RSI / MACD / STOCHASTIC / ATR / STOCHASTIC_RSI
     int              p1 = 14;    // primary period (RSI/ATR period, MACD fast, Stoch kPeriod)
-    int              p2 = 0;     // MACD slow, Stoch dPeriod
-    int              p3 = 0;     // MACD signal, Stoch smooth
+    int              p2 = 0;     // MACD slow, Stoch dPeriod, StochRSI kPeriod
+    int              p3 = 0;     // MACD signal, Stoch smooth, StochRSI dPeriod
+    int              p4 = 0;     // StochRSI smooth (others 미사용)
     TceColor         color1 = {1, 1, 1, 1};
     TceColor         color2 = {1, 1, 1, 0.6};   // MACD signal, Stoch %D
     TceColor         color3 = {0.5, 0.5, 0.5, 0.4}; // MACD histogram

@@ -134,6 +134,7 @@ typedef enum TceIndicatorKind {
     TCE_IND_WILLIAMS_R        = 106,  ///< Williams %R (period). -100..0
     TCE_IND_OBV               = 107,  ///< On-Balance Volume (누적)
     TCE_IND_MFI               = 108,  ///< Money Flow Index (period). 0..100
+    TCE_IND_STOCHASTIC_RSI    = 110,  ///< RSI에 stochastic 적용 — k/d 2채널
 } TceIndicatorKind;
 
 /// 드로잉 도구 종류. wrapper는 `tce_drawing_begin(kind, ...)`로 새 객체 시작.

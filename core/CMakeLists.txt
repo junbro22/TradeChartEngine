@@ -13,6 +13,7 @@ set(TCE_SOURCES
     src/indicator/zigzag.cpp
     src/indicator/hma.cpp
     src/indicator/stochastic.cpp
+    src/indicator/stoch_rsi.cpp
     src/indicator/atr.cpp
     src/indicator/ichimoku.cpp
     src/indicator/psar.cpp

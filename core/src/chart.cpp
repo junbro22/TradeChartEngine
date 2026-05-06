@@ -9,6 +9,7 @@
 #include "indicator/donchian.h"
 #include "indicator/keltner.h"
 #include "indicator/stochastic.h"
+#include "indicator/stoch_rsi.h"
 #include "indicator/atr.h"
 #include "indicator/ichimoku.h"
 #include "indicator/psar.h"
@@ -121,15 +122,19 @@ void Chart::removeOverlay(TceIndicatorKind k, int period) {
 void Chart::clearOverlays() { overlays_.clear(); }
 
 void Chart::addSubpanel(TceIndicatorKind k, int p1, int p2, int p3,
-                        TceColor color1, TceColor color2, TceColor color3) {
+                        TceColor color1, TceColor color2, TceColor color3,
+                        int p4) {
     auto it = std::find_if(subpanels_.begin(), subpanels_.end(),
         [&](const SubpanelSpec& s) { return s.kind == k; });
     if (it != subpanels_.end()) {
-        it->p1 = p1; it->p2 = p2; it->p3 = p3;
+        it->p1 = p1; it->p2 = p2; it->p3 = p3; it->p4 = p4;
         it->color1 = color1; it->color2 = color2; it->color3 = color3;
         return;
     }
-    subpanels_.push_back({k, p1, p2, p3, color1, color2, color3});
+    SubpanelSpec spec;
+    spec.kind = k; spec.p1 = p1; spec.p2 = p2; spec.p3 = p3; spec.p4 = p4;
+    spec.color1 = color1; spec.color2 = color2; spec.color3 = color3;
+    subpanels_.push_back(spec);
 }
 
 void Chart::removeSubpanel(TceIndicatorKind k, int period) {
@@ -572,6 +577,18 @@ bool Chart::queryStochastic(size_t idx, double& k, double& d) const {
     if (!spec) return false;
     const Series* iSeries = &series_;  // query는 원본 series 기준 (정책: 위 주석 참조)
     auto st = stochastic(*iSeries, spec->p1, spec->p2, spec->p3);
+    return readOpt(st.k, idx, k) && readOpt(st.d, idx, d);
+}
+
+bool Chart::queryStochasticRSI(size_t idx, double& k, double& d) const {
+    if (idx >= series_.size()) return false;
+    const SubpanelSpec* spec = nullptr;
+    for (const auto& s : subpanels_) {
+        if (s.kind == TCE_IND_STOCHASTIC_RSI) { spec = &s; break; }
+    }
+    if (!spec) return false;
+    const Series* iSeries = &series_;
+    auto st = stochasticRSI(*iSeries, spec->p1, spec->p2, spec->p3, spec->p4);
     return readOpt(st.k, idx, k) && readOpt(st.d, idx, d);
 }
 

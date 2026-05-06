@@ -11,6 +11,7 @@
 #include "indicator/zigzag.h"
 #include "indicator/hma.h"
 #include "indicator/stochastic.h"
+#include "indicator/stoch_rsi.h"
 #include "indicator/atr.h"
 #include "indicator/ichimoku.h"
 #include "indicator/psar.h"
@@ -197,6 +198,17 @@ void buildSubpanel(std::vector<TceVertex>& vTri, std::vector<uint32_t>& iTri,
     }
     if (spec.kind == TCE_IND_STOCHASTIC) {
         auto s = stochastic(series, spec.p1, spec.p2, spec.p3);
+        ymap.minP = 0; ymap.maxP = 100;
+        TceColor guide{0.4f, 0.4f, 0.5f, 0.4f};
+        emitLine(vLine, iLine, 0, ymap.yFor(20), slot * (to - from), ymap.yFor(20), guide);
+        emitLine(vLine, iLine, 0, ymap.yFor(80), slot * (to - from), ymap.yFor(80), guide);
+        emitPolyline(vLine, iLine, s.k, from, to, slot, ymap, spec.color1);
+        emitPolyline(vLine, iLine, s.d, from, to, slot, ymap, spec.color2);
+        return;
+    }
+    if (spec.kind == TCE_IND_STOCHASTIC_RSI) {
+        // p1=rsiPeriod, p2=kPeriod, p3=dPeriod, p4=smooth
+        auto s = stochasticRSI(series, spec.p1, spec.p2, spec.p3, spec.p4);
         ymap.minP = 0; ymap.maxP = 100;
         TceColor guide{0.4f, 0.4f, 0.5f, 0.4f};
         emitLine(vLine, iLine, 0, ymap.yFor(20), slot * (to - from), ymap.yFor(20), guide);
